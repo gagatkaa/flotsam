@@ -20,6 +20,10 @@ export interface Island {
   /** index into the event table, filled in when the events land */
   event: string
   group: THREE.Group
+  /** raised once you have been here, so the island is visibly finished */
+  flagged: boolean
+  /** the cloth on the pole, kept back so the loop can move it */
+  flag: THREE.Object3D | null
 }
 
 export interface World {
@@ -41,12 +45,12 @@ export function randomSource(seed: number) {
 
 /** the sea closes in the longer you're out there */
 export function choppyForIslands(cleared: number) {
-  return BASE_CHOPPY + Math.min(3.4, cleared * 0.48)
+  return BASE_CHOPPY + Math.min(2.7, cleared * 0.68)
 }
 
 /** the wind that pushes you off a straight line, strongest late in a run */
 export function driftForIslands(cleared: number) {
-  return Math.min(2.4, cleared * 0.34)
+  return Math.min(1.9, cleared * 0.48)
 }
 
 interface IslandSpec {
@@ -76,18 +80,6 @@ const SPECS: IslandSpec[] = [
     event: 'kitchen',
   },
   {
-    id: 'garden',
-    name: 'The Garden',
-    note: 'Green in a way that makes the crew stop talking.',
-    event: 'garden',
-  },
-  {
-    id: 'bell',
-    name: 'Bell Island',
-    note: 'A bell tower with no bell. Something rings anyway.',
-    event: 'bell',
-  },
-  {
     id: 'bones',
     name: 'The Bones',
     note: 'White rock, and a beach that is not entirely sand.',
@@ -100,6 +92,13 @@ const SPECS: IslandSpec[] = [
     event: 'homeward',
   },
 ]
+
+/**
+ * Every island except Homeward holds a piece of the chart. Derived rather than
+ * written down, so changing the archipelago cannot leave the win condition
+ * disagreeing with the map.
+ */
+export const CHART_PIECES = SPECS.length - 1
 
 /** a squat stack of cones and cylinders: enough to read as land at 400m */
 function makeIslandBody(random: () => number, radius: number) {
@@ -252,6 +251,8 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
       position: place.clone(),
       radius,
       group,
+      flagged: false,
+      flag: null,
     })
   })
 
@@ -283,6 +284,45 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
   }
 
   return { islands, hazards }
+}
+
+/**
+ * Raise a flag on the beach. This is the only permanent mark the game leaves on
+ * the world, so it doubles as the way the player knows an island is spent: you
+ * cannot land on it twice, and the flag is why that reads at two hundred metres.
+ */
+export function raiseFlag(island: Island) {
+  if (island.flagged) return
+  island.flagged = true
+
+  const timber = new THREE.MeshStandardNodeMaterial({ color: 0x53442f, roughness: 0.9 })
+  const cloth = new THREE.MeshStandardNodeMaterial({
+    color: 0x35b06a,
+    roughness: 0.85,
+    side: THREE.DoubleSide,
+  })
+
+  const pole = new THREE.Group()
+
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 4.6, 5), timber)
+  mast.position.y = 2.3
+  pole.add(mast)
+
+  // a plane with enough segments to actually bend when the loop moves it
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.05, 7, 3), cloth)
+  banner.position.set(0.9, 3.75, 0)
+  pole.add(banner)
+
+  // stand it up on the beach, clear of the rocks. Hash the id so each flag
+  // lands in a different spot rather than all seven in a neat ring.
+  const seed = [...island.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7)
+  const angle = ((seed % 360) / 360) * Math.PI * 2
+  const out = island.radius * 0.6
+  pole.position.set(Math.sin(angle) * out, 0.4, Math.cos(angle) * out)
+  pole.rotation.y = angle
+
+  island.group.add(pole)
+  island.flag = banner
 }
 
 const bearingScratch = new THREE.Vector3()

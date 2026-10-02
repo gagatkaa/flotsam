@@ -66,8 +66,8 @@ export const CARDS: readonly Card[] = [
     id: 'glass',
     name: "Navigator's Glass",
     family: 'utility',
-    text: 'Bearing and range to the next mark, always on.',
-    mul: {},
+    text: 'Dead reckoning gives you one bearing. The glass gives you all of them.',
+    add: { lookahead: 1 },
   },
   {
     id: 'helm',

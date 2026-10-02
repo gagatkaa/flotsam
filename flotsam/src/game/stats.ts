@@ -17,6 +17,13 @@ export interface Stats {
   pumps: number
   /** multiplier on collision damage taken */
   frailty: number
+  /**
+   * How much of the archipelago you can read off the instruments. 0 means the
+   * dead reckoning in your head: one bearing, to the nearest island. Higher
+   * values buy you the whole set, so one Navigator's Glass does the job and
+   * further copies are only worth taking for what else they carry.
+   */
+  lookahead: number
 }
 
 export const BASE_STATS: Stats = {
@@ -29,6 +36,7 @@ export const BASE_STATS: Stats = {
   helmFloor: 0,
   pumps: 1,
   frailty: 1,
+  lookahead: 0,
 }
 
 /**
@@ -83,6 +91,8 @@ export function resolve(deck: readonly Card[]): Stats {
   stats.rideHeight = Math.max(0.1, stats.rideHeight)
   stats.helmFloor = Math.min(1, Math.max(0, stats.helmFloor))
   stats.frailty = Math.max(0.15, stats.frailty)
+  // seven islands, six of them worth finding, and one copy already shows all
+  stats.lookahead = Math.min(6, Math.max(0, stats.lookahead))
 
   return stats
 }
@@ -97,9 +107,15 @@ export function describe(card: Card): string {
   }
 
   for (const [key, amount] of Object.entries(card.add ?? {}) as [keyof Stats, number][]) {
+    // lookahead counts landmarks rather than adjusting a number, and one copy
+    // already reveals everything there is, so describe the effect instead
+    if (key === 'lookahead') continue
+
     const sign = amount >= 0 ? '+' : ''
     parts.push(`${LABELS[key]} ${sign}${Math.round(amount * 100) / 100}`)
   }
+
+  if ((card.add?.lookahead ?? 0) > 0) parts.push(LABELS.lookahead)
 
   return parts.join('  ')
 }
@@ -114,4 +130,5 @@ const LABELS: Record<keyof Stats, string> = {
   helmFloor: 'helm',
   pumps: 'pumps',
   frailty: 'damage taken',
+  lookahead: 'bearing to every island',
 }

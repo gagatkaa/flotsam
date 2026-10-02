@@ -1,7 +1,7 @@
 import { resolve, type Card } from './stats'
 import type { Island } from './world'
 
-export type Phase = 'intro' | 'choosing' | 'sailing' | 'telling' | 'ashore' | 'home' | 'dead'
+export type Phase = 'intro' | 'sailing' | 'telling' | 'ashore' | 'home' | 'dead'
 
 export interface Choice {
   /** the line the player clicks */
@@ -36,7 +36,7 @@ export interface IslandEvent {
 }
 
 export interface RunEvents {
-  onChoose(destination: Island): void
+  onDepart(): void
   onTell(event: IslandEvent, island: Island): void
   onAshore(event: IslandEvent, island: Island): void
   onDepart(): void
@@ -46,15 +46,14 @@ export interface RunEvents {
 }
 
 /**
- * The run. Islands are visited in any order, so progress is "where have you
- * been" rather than a counter, and every decision writes a flag that other
- * islands read back.
+ * The run. There is no destination to choose: you put the tiller where you
+ * like and you arrive at whatever you arrive at. Progress is therefore "where
+ * have you been" rather than a counter, and every decision writes a flag that
+ * other islands read back.
  */
 export class Run {
   phase: Phase = 'intro'
   deck: Card[] = []
-  /** the island you're making for, or null when picking one */
-  destination: Island | null = null
   /** islands whose event has resolved */
   visited = new Set<string>()
   /** map pieces: the thing you're actually collecting */
@@ -80,10 +79,10 @@ export class Run {
     return counts
   }
 
-  setDestination(island: Island) {
-    this.destination = island
+  /** cast off after an event */
+  sail() {
     this.phase = 'sailing'
-    this.events.onChoose(island)
+    this.events.onDepart()
   }
 
   /** landed: first the story telling, then the choice */
@@ -119,8 +118,6 @@ export class Run {
 
     if (choice.piece) this.pieces.add(choice.piece)
 
-    this.destination = null
-    this.phase = 'choosing'
-    this.events.onDepart()
+    this.sail()
   }
 }

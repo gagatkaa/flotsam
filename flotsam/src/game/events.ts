@@ -68,8 +68,8 @@ export const EVENTS: Record<string, IslandEvent> = {
       'once, and that means there is somebody here.',
     choices: [
       {
-        text: 'Take the chart. The sooner you are home the fewer people find out.',
-        outcome: 'Took the chart off the gallows.',
+        text: 'Take the chart, and the spy-glass that came with it.',
+        outcome: 'Took the chart and the glass off the gallows.',
         piece: 'gallows',
         gain: byId('glass'),
         sets: 'took-chart',
@@ -145,103 +145,6 @@ export const EVENTS: Record<string, IslandEvent> = {
         piece: 'kitchen',
         damage: 8,
         sets: 'took-pot',
-      },
-    ],
-  },
-
-  garden: {
-    island: 'garden',
-    title: 'The Garden',
-    telling:
-      'Green. Actual green, in the middle of all this white water, and the crew ' +
-      'stop talking before you have said anything. You can see it is not wild. ' +
-      'There are rows. Somebody has been standing in these rows, turning ground ' +
-      'over, for a long time and by themselves.',
-    adventure:
-      'The rows go right up to a stone hut with a door that has been repaired four ' +
-      'or five separate times. Inside: a table, a chart with most of it torn off, ' +
-      'and a bed with somebody in it who is not dead and would rather you left. ' +
-      'They have been here alone a long time and they have clearly been eating what ' +
-      'the garden gives. There is fruit on the table, cut open, for you.',
-    choices: [
-      {
-        text: 'Trade seeds for a share of the chart. Plant them and leave.',
-        outcome: 'Traded seeds at the Garden for a share of the chart.',
-        piece: 'garden',
-        gain: byId('buoyancy'),
-        sets: 'traded-garden',
-      },
-      {
-        text: 'Take the whole chart off the table. Let them keep the fruit.',
-        outcome: "Took the Garden's chart off the table. Left them the fruit.",
-        piece: 'garden',
-        damage: 10,
-        sets: 'robbed-garden',
-      },
-      {
-        text: 'Eat what is on the table first. Ask questions after.',
-        outcome: "Ate the Garden's food and took the chart.",
-        piece: 'garden',
-        gain: byId('keel'),
-        damage: 14,
-        sets: 'ate-first',
-      },
-      {
-        text: 'Show them your half of the wreck chart. Compare the two.',
-        outcome: 'Compared notes with the Garden and found they agreed.',
-        piece: 'garden',
-        gain: byId('glass'),
-        sets: 'compared-notes',
-        requires: 'robbed-wreck',
-      },
-    ],
-  },
-
-  bell: {
-    island: 'bell',
-    title: 'Bell Island',
-    telling:
-      'A tower with no bell in it, which is not a thing you build. The tower is ' +
-      'good work, proper stone, four storeys, and the top of it is open to the ' +
-      'sky. Nothing in it. And yet something in the tower is making a sound, low ' +
-      'and slow, every eleven seconds or so, like something enormous breathing.',
-    adventure:
-      'You go up. On the second landing there is a winch, and a drum, and a ' +
-      'length of chain running up through the floor to the open top. Every eleven ' +
-      'seconds the drum turns and pays out chain. On the fourth floor you find the ' +
-      'other end of it: a bell the size of your boat, green with verdigris, and ' +
-      'the note it makes carries a very long way. Somebody built this to be heard ' +
-      'from offshore.',
-    choices: [
-      {
-        text: 'Take the chain off the drum. Silence it.',
-        outcome: 'Took the chain off the Bell Island drum. It stopped.',
-        piece: 'bell',
-        gain: byId('ballast'),
-        sets: 'silenced-bell',
-      },
-      {
-        text: 'Ring it. Properly. Let whatever is listening know you are here.',
-        outcome: 'Rang the bell. Let them hear it.',
-        piece: 'bell',
-        gain: byId('studding'),
-        damage: 20,
-        sets: 'rang-bell',
-      },
-      {
-        text: 'Take the chart from the winch room and leave the bell alone.',
-        outcome: 'Took the Bell Island chart. Left the bell ringing.',
-        piece: 'bell',
-        gain: byId('rigging'),
-        sets: 'left-bell',
-      },
-      {
-        text: 'Cut the chain and drop the bell into the sea.',
-        outcome: 'Cut the chain and dropped the bell.',
-        piece: 'bell',
-        damage: 12,
-        sets: 'drowned-bell',
-        requires: 'killed-wreck',
       },
     ],
   },

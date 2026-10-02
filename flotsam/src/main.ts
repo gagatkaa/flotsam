@@ -21,8 +21,10 @@ import { WaveField } from './objects/WaveField'
 import {
   bearingAndRange,
   buildWorld,
+  CHART_PIECES,
   choppyForIslands,
   driftForIslands,
+  raiseFlag,
   type Island,
   type World,
 } from './game/world'
@@ -36,8 +38,8 @@ document.querySelector<HTMLDivElement>('#app')!.appendChild(canvas)
 
 // the ported shader is raw WGSL, so there is no WebGL2 fallback
 if (!('gpu' in navigator)) {
-  const cta = document.querySelector<HTMLDivElement>('#overlay .cta')
-  if (cta) cta.textContent = 'WebGPU required — use Chrome or Edge over https'
+  document.querySelector<HTMLDivElement>('#overlay')?.classList.remove('hidden')
+  document.querySelector<HTMLDivElement>('#chart')?.classList.add('hidden')
   throw new Error('WebGPU is not available in this browser')
 }
 
@@ -75,10 +77,6 @@ scene.backgroundNode = vec4(
 const waves = new WaveField()
 
 const run = new Run({
-  onChoose() {
-    hidePanels()
-    lock()
-  },
   onTell(event, island) {
     showTell(event, island)
   },
@@ -89,7 +87,8 @@ const run = new Run({
     // a choice can change the boat, so hand the new numbers over and redraw
     ship.applyStats(run.stats)
     renderBuild()
-    showChart()
+    closePanels()
+    lock()
   },
   onDamage(amount) {
     ship.damage(amount)
@@ -139,6 +138,7 @@ const chartEl = document.querySelector<HTMLDivElement>('#chart')!
 const draftEl = document.querySelector<HTMLDivElement>('#draft')!
 const flash = document.querySelector<HTMLDivElement>('#damage')!
 const windEl = document.querySelector<HTMLSpanElement>('#wind')!
+const bearingsEl = document.querySelector<HTMLUListElement>('#bearings')!
 
 function hidePanels() {
   chartEl.classList.add('hidden')
@@ -156,58 +156,50 @@ function renderBuild() {
   }
 }
 
-// ---- opening: who you are and what you are looking for, then cast off
+// ---- opening: the situation, the seven, then cast off
 function showIntro() {
   chartEl.innerHTML = ''
 
   const sheet = document.createElement('div')
   sheet.className = 'prologue'
 
-  const story = document.createElement('div')
-  story.className = 'scene'
-  story.innerHTML =
-    '<h1>flotsam</h1>' +
+  sheet.innerHTML =
+    '<p class="eyebrow">a short crossing</p>' +
+    '<h1>Flotsam</h1>' +
+    '<div class="lede">' +
     '<p>Eleven days out of harbour with a cargo you cannot name and a crew of ' +
     'nineteen. On the fourth night the horizon went white in the wrong direction ' +
-    'and never went back, and by the eighth the water had changed and none of the ' +
+    'and never went back. By the eighth the water had changed, and none of the ' +
     'men would say the word for it.</p>' +
-    '<p>The chart that would take you home is in six pieces, and the six pieces ' +
-    'are on six islands. There is a seventh island where the whole chart can be ' +
-    'read. You will have to go and get them.</p>'
-  sheet.appendChild(story)
+    `<p>The chart that would take you home is in ${CHART_PIECES} pieces. The pieces ` +
+    `are on ${CHART_PIECES} islands. Sail to whichever one you can see, and decide ` +
+    'what you are willing to do when you get there.</p>' +
+    '</div>' +
+    '<ol class="manifest">' +
+    '<li><b>The Wreck</b><span>A hull still above water</span></li>' +
+    '<li><b>Gallows Cay</b><span>A chart nailed to a post</span></li>' +
+    '<li><b>Kitchen Rock</b><span>Smoke, and somebody keeping a fire</span></li>' +
+    '<li><b>The Bones</b><span>White rock, and a beach not entirely sand</span></li>' +
+    '<li class="last"><b>Homeward</b><span>Salt-white, and far</span></li>' +
 
-  // a manifest, not a menu. Nothing here is chosen yet.
-  const manifest = document.createElement('ol')
-  manifest.className = 'manifest'
-  manifest.innerHTML =
-    '<li>the wreck<em>a hull still above water</em></li>' +
-    '<li>gallows cay<em>a chart nailed to a post</em></li>' +
-    '<li>kitchen rock<em>smoke, and somebody keeping a fire</em></li>' +
-    '<li>the garden<em>green, and somebody working it</em></li>' +
-    '<li>bell island<em>a tower, and a sound every eleven seconds</em></li>' +
-    '<li>the bones<em>white rock, and a beach not entirely sand</em></li>' +
-    '<li class="last">homeward<em>salt-white, and far</em></li>'
-  sheet.appendChild(manifest)
-
-  const keys = document.createElement('p')
-  keys.className = 'controls-line'
-  keys.innerHTML =
-    '<b>W</b> <b>S</b> throttle <span>·</span> <b>A</b> <b>D</b> rudder ' +
-    '<span>·</span> <b>mouse</b> look <span>·</span> <b>esc</b> release cursor'
-  sheet.appendChild(keys)
+    '<p class="keys">' +
+    '<b>W</b><b>S</b> throttle<i>·</i><b>A</b><b>D</b> rudder<i>·</i>' +
+    '<b>Mouse</b> look<i>·</i><b>Esc</b> release cursor' +
+    '</p>'
 
   chartEl.appendChild(sheet)
 
   const go = document.createElement('button')
   go.className = 'sail'
-  go.textContent = 'start sailing'
+  go.textContent = 'Start sailing'
   go.addEventListener('click', () => {
-    run.phase = 'choosing'
-    chartEl.classList.add('hidden')
-    showChart()
+    run.sail()
+    hidePanels()
+    lock()
   })
   chartEl.appendChild(go)
 
+  // the intro is a page, not a popup: it stays up until Start sailing
   chartEl.classList.remove('hidden')
   draftEl.classList.add('hidden')
   overlay.classList.add('hidden')
@@ -215,47 +207,9 @@ function showIntro() {
   if (controls.isLocked) controls.unlock()
 }
 
-// ---- the destination list: the actual decision the player makes each island
-function showChart() {
-  chartEl.innerHTML = ''
-
-  const heading = document.createElement('h2')
-  heading.textContent = run.pieces.size ? 'where to next' : 'seven islands, six pieces of chart'
-  chartEl.appendChild(heading)
-
-  for (const island of world.islands) {
-    const { bearing, range } = bearingAndRange(ship.position, island.position)
-    const button = document.createElement('button')
-    button.className = 'island'
-    if (run.visited.has(island.id)) button.classList.add('visited')
-
-    // Homeward is not a place you can just turn up at. Six pieces of chart
-    // and you can read the way in; without them you would only find out.
-    const locked = island.id === 'homeward' && run.pieces.size < 6
-    if (locked) button.disabled = true
-
-    button.innerHTML =
-      `<span class="title">${island.name}</span>` +
-      `<span class="note">${run.visited.has(island.id) ? 'walked' : island.note}</span>` +
-      `<span class="nav">${bearing}° · ${range} m</span>` +
-      (locked
-        ? `<span class="locked">${6 - run.pieces.size} more piece${6 - run.pieces.size === 1 ? '' : 's'}</span>`
-        : '')
-
-    if (!locked) button.addEventListener('click', () => run.setDestination(island))
-    chartEl.appendChild(button)
-  }
-
-  const hint = document.createElement('p')
-  hint.className = 'hint'
-  hint.textContent = 'pick an island. the water gets worse the longer you are out there.'
-  chartEl.appendChild(hint)
-
-  chartEl.classList.remove('hidden')
-  draftEl.classList.add('hidden')
+function closePanels() {
+  hidePanels()
   overlay.classList.add('hidden')
-  document.body.classList.remove('locked')
-  if (controls.isLocked) controls.unlock()
 }
 
 function showNothingHere(island: Island) {
@@ -269,8 +223,112 @@ function showNothingHere(island: Island) {
 
   const next = document.createElement('button')
   next.className = 'go'
-  next.textContent = 'back to the chart'
-  next.addEventListener('click', showChart)
+  next.textContent = 'back to sea'
+  next.addEventListener('click', () => {
+    closePanels()
+    lock()
+  })
+  draftEl.appendChild(next)
+
+  openPanel()
+}
+
+/** how close you have to get before you have landed */
+const LANDING = 12
+
+/**
+ * An island that has already shown its panel, so it cannot show it again while
+ * you are still sitting on top of it. Cleared once you have actually sailed off
+ * it. Without this, a panel that does not change phase re-fires every frame and
+ * the player cannot get away from it.
+ */
+let shownOn: string | null = null
+
+/** throttles the bearings list, which does not need 60 rebuilds a second */
+let bearingTimer = 0
+
+/**
+ * What the instruments can tell you. Without a Navigator's Glass you get the one
+ * bearing your own reckoning gives you, to whichever island is nearest. With
+ * one, you get every island and its leg, spent ones included, because a chart
+ * that remembers where you have already been is worth as much as one that
+ * tells you where to go next.
+ */
+function renderBearings() {
+  const glass = run.stats.lookahead > 0
+
+  const nearest = nearestUnvisited()
+  if (!glass) {
+    bearingsEl.innerHTML = ''
+    windEl.textContent = nearest
+      ? (() => {
+          const { bearing, range } = bearingAndRange(ship.position, nearest.position)
+          return `${nearest.name} ${bearing}° · ${range} m`
+        })()
+      : 'chart complete'
+    return
+  }
+
+  windEl.textContent = 'all bearings'
+
+  const rows = [...world.islands].sort((a, b) => {
+    const da = Math.hypot(ship.position.x - a.position.x, ship.position.z - a.position.z)
+    const db = Math.hypot(ship.position.x - b.position.x, ship.position.z - b.position.z)
+    return da - db
+  })
+
+  let html = ''
+  for (const island of rows) {
+    const { bearing, range } = bearingAndRange(ship.position, island.position)
+    const spent = run.visited.has(island.id)
+    html +=
+      `<li${spent ? ' class="spent"' : ''}>` +
+      `<span class="name">${island.name}</span>` +
+      `<span class="leg">${bearing}° ${range}m</span>` +
+      `</li>`
+  }
+  bearingsEl.innerHTML = html
+}
+
+/** the closest island still holding a piece of chart, Homeward included */
+function nearestUnvisited(): Island | null {
+  let best: Island | null = null
+  let gap = Infinity
+  for (const island of world.islands) {
+    if (run.visited.has(island.id)) continue
+    const distance = Math.hypot(
+      ship.position.x - island.position.x,
+      ship.position.z - island.position.z,
+    )
+    if (distance < gap) {
+      gap = distance
+      best = island
+    }
+  }
+  return best
+}
+
+// ---- you can stand on Homeward any time. you can only leave it with all six
+function showNoChart() {
+  draftEl.innerHTML = ''
+  const block = document.createElement('div')
+  block.className = 'scene'
+  const missing = CHART_PIECES - run.pieces.size
+  block.innerHTML =
+    '<h2>Homeward</h2>' +
+    `<p>You have ${run.pieces.size} of ${CHART_PIECES} pieces of the chart. You could walk the ` +
+    `whole shore and it would not tell you the way in. ${missing} more to find.</p>`
+  draftEl.appendChild(block)
+
+  const next = document.createElement('button')
+  next.className = 'go'
+  next.textContent = 'back to sea'
+  next.addEventListener('click', () => {
+    // let them come back once they have the rest of it
+    run.visited.delete('homeward')
+    closePanels()
+    lock()
+  })
   draftEl.appendChild(next)
 
   openPanel()
@@ -331,10 +389,7 @@ function showAshore(event: IslandEvent) {
   }
 
   draftEl.appendChild(hand)
-  draftEl.classList.remove('hidden')
-  overlay.classList.remove('hidden')
-  document.body.classList.remove('locked')
-  if (controls.isLocked) controls.unlock()
+  openPanel()
 }
 
 function take(choice: Choice) {
@@ -371,7 +426,7 @@ function showHome(log: string[]) {
   block.className = 'scene'
   block.innerHTML =
     '<h2>Home</h2>' +
-    '<p>Six pieces of chart, and a crew who are still alive to read it. ' +
+    `<p>${CHART_PIECES} pieces of chart, and a crew who are still alive to read it. ` +
     'You did not come back the way you left.</p>'
   draftEl.appendChild(block)
   draftEl.appendChild(buildLog(log))
@@ -460,6 +515,14 @@ function animate() {
   for (const island of world.islands) {
     const y = waves.height(island.position.x, island.position.z)
     island.group.position.set(island.position.x, y - 1.2, island.position.z)
+
+    // the flag is the only thing on these islands that moves on its own, which
+    // is what makes it readable as a signal from a distance
+    if (island.flag) {
+      const gust = elapsed * 2.3 + island.position.x * 0.05
+      island.flag.rotation.z = Math.sin(gust) * 0.14
+      island.flag.rotation.y = Math.sin(gust * 0.7) * 0.5
+    }
   }
 
   // ---- rock
@@ -488,31 +551,49 @@ function animate() {
     flash.classList.add('on')
   }
 
-  // ---- arrival
-  if (run.phase === 'sailing' && run.destination) {
-    const distance = Math.hypot(
-      ship.position.x - run.destination.position.x,
-      ship.position.z - run.destination.position.z,
-    )
-    if (distance < run.destination.radius + 14) {
-      const island = run.destination
+  // ---- arrival: no destination was ever chosen, so you simply arrive
+  // wherever you happen to have sailed into
+  if (run.phase === 'sailing') {
+    for (const island of world.islands) {
+      const distance = Math.hypot(
+        ship.position.x - island.position.x,
+        ship.position.z - island.position.z,
+      )
 
-      // Homeward ends the run outright: no choice, just the way in.
+      // forget an island once you are well clear of it, so you can come back
+      if (shownOn === island.id && distance > island.radius + LANDING * 6) shownOn = null
+      if (distance > island.radius + LANDING) continue
+      if (shownOn === island.id) continue
+
+      // A spent island cannot be landed on again. Homeward is the exception:
+      // you can sit off it as often as you like, it just will not read.
+      const spent = run.visited.has(island.id)
+      if (spent && island.id !== 'homeward') continue
+
       if (island.id === 'homeward') {
+        shownOn = island.id
+        // you can reach it any time. you can only read it with the whole chart.
         run.visited.add(island.id)
-        run.reachHome()
-      } else if (!eventFor(island.event)) {
-        // Never fail silently. A missing event used to bounce the player
-        // straight back to the chart, which is indistinguishable from the
-        // game simply not working.
-        console.error(`no event written for island: ${island.id} (${island.event})`)
-        run.visited.add(island.id)
-        run.destination = null
-        run.phase = 'choosing'
-        showNothingHere(island)
-      } else {
-        run.land(eventFor(island.event)!, island)
+        if (run.pieces.size < CHART_PIECES) showNoChart()
+        else run.reachHome()
+        break
       }
+
+      shownOn = island.id
+      run.visited.add(island.id)
+      raiseFlag(island)
+
+      const event = eventFor(island.event)
+      if (!event) {
+        // Never fail silently. A missing event used to drop the player straight
+        // back into open water, which is indistinguishable from nothing working.
+        console.error(`no event written for island: ${island.id} (${island.event})`)
+        showNothingHere(island)
+        break
+      }
+
+      run.land(event, island)
+      break
     }
   }
 
@@ -525,13 +606,14 @@ function animate() {
   hullEl.style.width = `${ship.health * 100}%`
   hullEl.style.background = ship.health < 0.35 ? '#ff6a4d' : '#7fd4a1'
   readouts.textContent = `${(ship.speed * 1.2).toFixed(1)} kn`
-  piecesEl.textContent = `${run.pieces.size}/6`
+  piecesEl.textContent = `${run.pieces.size}/${CHART_PIECES}`
 
-  if (run.destination) {
-    const { bearing, range } = bearingAndRange(ship.position, run.destination.position)
-    windEl.textContent = `${bearing}° · ${range} m`
-  } else {
-    windEl.textContent = 'adrift'
+  // ---- the instruments: one bearing by dead reckoning, the whole set with a
+  // glass. Throttled, because rewriting the list every frame is pointless.
+  bearingTimer += delta
+  if (bearingTimer > 0.2) {
+    bearingTimer = 0
+    renderBearings()
   }
 
   renderer.render(scene, camera)
