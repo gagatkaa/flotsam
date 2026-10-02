@@ -20,7 +20,6 @@ const SEA_BASE: vec3f = vec3f( 0.0, 0.09, 0.18 );
 // GLSL: vec3( 0.8, 0.9, 0.6 ) * 0.6 - pre-scaled, vector * scalar is not a
 // valid const expression everywhere
 const SEA_WATER_COLOR: vec3f = vec3f( 0.48, 0.54, 0.36 );
-const octave_m: mat2x2f = mat2x2f( 1.6, 1.2, -1.2, 1.6 );
 
 // math
 fn fromEuler( ang: vec3f ) -> mat3x3f {
@@ -116,7 +115,11 @@ fn map( p: vec3f, seaTime: f32, choppy0: f32 ) -> f32 {
 
 		h += d * amp;
 
-		uv *= octave_m;
+		// GLSL `uv *= octave_m` is a row-vector times matrix product, which WGSL has no
+		// operator for, so the octave rotation is spelled out per component
+		let rotated = vec2f( uv.x * 1.6 + uv.y * 1.2, uv.x * - 1.2 + uv.y * 1.6 );
+		uv = rotated;
+
 		freq *= 1.9;
 		amp *= 0.22;
 		choppy = mix( choppy, 1.0, 0.2 );
@@ -145,7 +148,11 @@ fn map_detailed( p: vec3f, seaTime: f32, choppy0: f32 ) -> f32 {
 
 		h += d * amp;
 
-		uv *= octave_m;
+		// GLSL `uv *= octave_m` is a row-vector times matrix product, which WGSL has no
+		// operator for, so the octave rotation is spelled out per component
+		let rotated = vec2f( uv.x * 1.6 + uv.y * 1.2, uv.x * - 1.2 + uv.y * 1.6 );
+		uv = rotated;
+
 		freq *= 1.9;
 		amp *= 0.22;
 		choppy = mix( choppy, 1.0, 0.2 );
