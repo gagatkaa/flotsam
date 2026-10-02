@@ -23,15 +23,22 @@ USER PREFERENCES
 - Some additional WebGPU libraries
 - Don't make it too complicated
 
-CONCEPT: "FLOTSAM - Underwater Exploration"
----------------------------------------------
-Matching the project name "flotsam" (floating debris in water), create an underwater scene:
-- Movement: "Swim" mode - fly/swim through water (first-person with WASD + space/crouch or just free-fly). Use PointerLockControls or custom FPS controls. Can toggle between swim/fly.
-- Environment: Submerged area with water, caustics, floating objects
-- Physics: Floating debris (wood planks, bottles, cans, leaves) that drift slowly, maybe react to player movement/water currents. Simple rigid body physics.
-- Multiple shaders: Water/ocean shader, caustics, debris/particles, volumetric fog, maybe seafloor terrain shader
-- Models: Simple low-poly Blender models (planks, rocks, bottles) - no baking needed. Can use basic geometries + shaders
-- Interaction: Player can move around, look, maybe push objects, trigger currents, or interact with light
+CONCEPT: "FLOTSAM - Drifting on the Open Sea"
+--------------------------------------------
+REVISED 2026-10-02 (MVP decision): the Seascape shader is an ABOVE-water ocean, so the original
+underwater idea is dropped for the MVP. The player swims/skims just above the waterline instead,
+which keeps the scene physically coherent and lets the shader's own heightfield be the water surface.
+The submerged variant (caustics, seafloor, underwater fog) can be a later phase - it would need the
+shader's single-sided heightmap inverted, which is a much bigger job.
+
+Matching the project name "flotsam" (floating debris on water), create a surface-level ocean scene:
+- Movement: "Swim" mode - first-person with WASD + space/shift. PointerLockControls. Free 3D swim.
+- Environment: open ocean from the ported shader, sun + fog, drifting debris on the surface
+- Physics: Floating debris (wood planks, bottles, cans, leaves) that drift slowly and react to the
+  player. Simple rigid body physics (cannon-es) - NOT in the MVP, procedural bob for now.
+- Multiple shaders: ocean shader (done), caustics/underwater fog or debris shader (later)
+- Models: Simple low-poly Blender models (planks, rocks, bottles) - no baking needed
+- Interaction: Move/look around; player speed raises the wave choppiness uniform
 
 
 SHADERTOY CANDIDATES (Good for water/ocean)

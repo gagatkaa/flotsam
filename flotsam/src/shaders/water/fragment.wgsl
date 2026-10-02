@@ -1,15 +1,28 @@
-fn waterMain(fragCoord: vec2f, iResolution: vec2f, iTime: f32, iMouse: vec4f, cameraPos: vec3f, worldPos: vec3f) -> vec4f {
-  let uv = (fragCoord - 0.5 * iResolution) / iResolution.y;
-  
-  var color = vec3f(0.0, 0.3, 0.6);
-  
-  // Simple animated waves
-  let wave = sin(uv.x * 10.0 + iTime * 0.5) * sin(uv.y * 8.0 + iTime * 0.3) * 0.1;
-  color += vec3f(wave * 0.2, wave * 0.3, wave * 0.4);
-  
-  // Distance fade
-  let dist = length(uv);
-  color *= 1.0 - dist * 0.5;
-  
-  return vec4f(color, 0.8);
+// "Seascape" by Alexander Alekseev aka TDM - 2014
+// https://www.shadertoy.com/view/Ms2SD1
+// License: Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported
+//
+// Entry point of the port. Helpers live in ./lib.wgsl and are injected ahead of
+// this function by main.ts.
+//
+// Deviations from the original GLSL:
+//  - the shadertoy's internal fly camera is replaced by the three.js camera:
+//    `dir` is the world-space view ray, `ori` the camera position
+//  - `#define SEA_TIME (1.0 + iTime * SEA_SPEED)` becomes the `seaTime` local
+//  - `#define EPSILON_NRM (0.1 / iResolution.x)` becomes the `epsScale` argument
+//  - `iMouse` is dropped: pointer-lock mouse look already drives the camera
+//  - the `#ifdef AA` variant is not ported (it is disabled upstream)
+
+fn seascape( dirIn: vec3f, ori: vec3f, resolution: vec2f, iTime: f32, choppy0: f32 ) -> vec3f {
+
+	let dir = normalize( dirIn );
+
+	let seaTime = 1.0 + iTime * SEA_SPEED;
+	let epsScale = 0.1 / resolution.x;
+
+	let color = getPixel( ori, dir, seaTime, choppy0, epsScale );
+
+	// post
+	return pow( color, vec3f( 0.65 ) );
+
 }

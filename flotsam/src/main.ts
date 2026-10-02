@@ -1,191 +1,127 @@
 import './style.css'
 import * as THREE from 'three/webgpu'
-import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js'
-import { wgslFn, uniform, vec2, vec3, vec4, float } from 'three/tsl'
+import {
+  cameraPosition,
+  normalize,
+  positionWorld,
+  screenSize,
+  uniform,
+  vec3,
+  vec4,
+  wgsl,
+  wgslFn,
+} from 'three/tsl'
 
-import waterFragment from './shaders/water/fragment.wgsl?raw'
+import seascapeHelpers from './shaders/water/lib.wgsl?raw'
+import seascapeEntry from './shaders/water/fragment.wgsl?raw'
+
+import { SwimControls } from './controls/SwimControls'
+import { FlotsamField } from './objects/FlotsamField'
 
 const canvas = document.createElement('canvas')
 canvas.id = 'webgl'
 document.querySelector<HTMLDivElement>('#app')!.appendChild(canvas)
 
-const renderer = new THREE.WebGPURenderer({ canvas, alpha: false })
+// the ported shader is raw WGSL, so there is no WebGL2 fallback
+if (!('gpu' in navigator)) {
+  const cta = document.querySelector<HTMLDivElement>('#overlay .cta')
+  if (cta) cta.textContent = 'WebGPU required — use Chrome or Edge over https'
+  throw new Error('WebGPU is not available in this browser')
+}
+
+const renderer = new THREE.WebGPURenderer({ canvas, antialias: false })
+// Seascape is expensive (32 raymarch steps + 4 detailed height samples per pixel),
+// so render at 1 device pixel per CSS pixel.
+renderer.setPixelRatio(1)
+renderer.toneMapping = THREE.NoToneMapping
 await renderer.init()
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0x061826)
+scene.fog = new THREE.FogExp2(0x9fc4dd, 0.0035)
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-camera.position.set(0, 10, 30)
+// ---------------------------------------------------------------- ocean shader
+// "Seascape" by Alexander Alekseev aka TDM - https://www.shadertoy.com/view/Ms2SD1
+// The helpers are emitted at module scope ahead of the entry function.
+const seascape = wgslFn<[THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node]>(seascapeEntry, [wgsl(seascapeHelpers)])
 
-const controls = new PointerLockControls(camera, canvas)
+const uTime = uniform(0)
+const uChoppy = uniform(4)
 
-let prevTime = 0
+// `wgslFn` is typed as returning an untyped Node, so cast it to a vec3 node
+const seascapeColor = seascape as unknown as (...args: THREE.Node[]) => ReturnType<typeof vec3>
 
-const keys: Record<string, boolean> = {}
-const velocity = new THREE.Vector3()
-const direction = new THREE.Vector3()
+const rayDir = normalize(positionWorld)
+// three renders scene.backgroundNode on a skybox sphere with its translation
+// stripped, so positionWorld is the world space view ray of this fragment.
+scene.backgroundNode = vec4(
+  seascapeColor(rayDir, cameraPosition, screenSize, uTime, uChoppy),
+  1,
+)
 
-let moveForward = false
-let moveBackward = false
-let moveLeft = false
-let moveRight = false
-let canJump = false
+// ---------------------------------------------------------------------- camera
+const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 2000)
+camera.position.set(0, 3, 0)
 
-const mouse = new THREE.Vector4(0, 0, 0, 0)
+const swim = new SwimControls(camera, canvas)
 
-// Water shader using TSL
-const waterFn = wgslFn(waterFragment, { name: 'waterMain' })
+// ------------------------------------------------------------------- lighting
+const sun = new THREE.DirectionalLight(0xfff2d8, 2.4)
+sun.position.set(-40, 14, -20)
+scene.add(sun)
 
-const iTime = uniform(0)
-const iResolution = uniform(new THREE.Vector2())
-const iMouseUniform = uniform(mouse)
-const cameraPos = uniform(new THREE.Vector3())
-const worldPos = uniform(new THREE.Vector3())
-
-const waterGeometry = new THREE.PlaneGeometry(200, 200, 128, 128)
-const waterMaterial = new THREE.MeshBasicNodeMaterial({
-  colorNode: waterFn(vec2(new THREE.Vector2()), iResolution, iTime, iMouseUniform, cameraPos, worldPos),
-  transparent: true
-})
-const water = new THREE.Mesh(waterGeometry, waterMaterial)
-water.rotation.x = -Math.PI / 2
-water.position.y = 0
-scene.add(water)
-
-// Seafloor
-const floorGeometry = new THREE.PlaneGeometry(200, 200, 50, 50)
-const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x2d3826, roughness: 0.9 })
-const floor = new THREE.Mesh(floorGeometry, floorMaterial)
-floor.rotation.x = -Math.PI / 2
-floor.position.y = -15
-scene.add(floor)
-
-// Directional light
-const light = new THREE.DirectionalLight(0xffffff, 1.2)
-light.position.set(50, 80, 30)
-scene.add(light)
-scene.add(new THREE.AmbientLight(0x304d75, 0.5))
-
-// Sky dome
-const skyGeometry = new THREE.SphereGeometry(600, 32, 16)
-const skyMaterial = new THREE.MeshBasicMaterial({ color: 0x0a1e3d, side: THREE.BackSide })
-const sky = new THREE.Mesh(skyGeometry, skyMaterial)
+const sky = new THREE.HemisphereLight(0xbfe3ff, 0x1d4a63, 1.1)
 scene.add(sky)
 
-// Simple floating boxes as flotsam (physics-free for MVP, can add cannon-es later)
-const flotsamGroup = new THREE.Group()
-for (let i = 0; i < 10; i++) {
-  const size = 1 + Math.random() * 2
-  const geo = new THREE.BoxGeometry(size, 0.2, size)
-  const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(0.05, 0.5, 0.4) })
-  const mesh = new THREE.Mesh(geo, mat)
-  mesh.position.set((Math.random() - 0.5) * 80, -0.5 + Math.random() * 2, (Math.random() - 0.5) * 80)
-  mesh.rotation.y = Math.random() * Math.PI
-  mesh.userData.floatSpeed = 0.2 + Math.random() * 0.3
-  mesh.userData.floatOffset = Math.random() * Math.PI * 2
-  flotsamGroup.add(mesh)
-}
-scene.add(flotsamGroup)
+const flotsam = new FlotsamField()
+scene.add(flotsam.group)
 
-function initControls() {
-  canvas.addEventListener('click', () => {
-    controls.lock()
-  })
+// ------------------------------------------------------------------------- hud
+const overlay = document.querySelector<HTMLDivElement>('#overlay')!
+const readouts = document.querySelector<HTMLSpanElement>('#readout')!
 
-  controls.addEventListener('lock', () => {})
-  controls.addEventListener('unlock', () => {})
+swim.controls.addEventListener('lock', () => {
+  overlay.classList.add('hidden')
+  document.body.classList.add('locked')
+})
+swim.controls.addEventListener('unlock', () => {
+  overlay.classList.remove('hidden')
+  document.body.classList.remove('locked')
+})
 
-  document.addEventListener('keydown', (e) => {
-    keys[e.code] = true
-    switch (e.code) {
-      case 'KeyW': moveForward = true; break
-      case 'KeyA': moveLeft = true; break
-      case 'KeyS': moveBackward = true; break
-      case 'KeyD': moveRight = true; break
-      case 'Space':
-        velocity.y += 15
-        break
-      case 'ShiftLeft':
-      case 'ControlLeft':
-        velocity.y -= 15
-        break
-    }
-  })
-
-  document.addEventListener('keyup', (e) => {
-    keys[e.code] = false
-    switch (e.code) {
-      case 'KeyW': moveForward = false; break
-      case 'KeyA': moveLeft = false; break
-      case 'KeyS': moveBackward = false; break
-      case 'KeyD': moveRight = false; break
-    }
-  })
-
-  canvas.addEventListener('mousemove', (e) => {
-    mouse.x = e.clientX
-    mouse.y = e.clientY
-    mouse.z = e.movementX || 0
-    mouse.w = e.movementY || 0
-  })
-}
-
-function updateMovement(delta: number) {
-  if (controls.isLocked) {
-    velocity.x -= velocity.x * 8.0 * delta
-    velocity.z -= velocity.z * 8.0 * delta
-    velocity.y -= velocity.y * 4.0 * delta
-
-    direction.z = Number(moveForward) - Number(moveBackward)
-    direction.x = Number(moveRight) - Number(moveLeft)
-    direction.normalize()
-
-    const speed = 25.0
-
-    if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta
-    if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta
-
-    controls.moveRight(-velocity.x * delta)
-    controls.moveForward(-velocity.z * delta)
-    camera.position.y += velocity.y * delta
-
-    if (camera.position.y < -12) camera.position.y = -12
-    if (camera.position.y > 80) camera.position.y = 80
-  }
-}
-
+// ----------------------------------------------------------------------- loop
 function resize() {
-  const dpr = Math.min(window.devicePixelRatio, 2)
-  renderer.setSize(window.innerWidth * dpr, window.innerHeight * dpr, false)
-  camera.aspect = window.innerWidth / window.innerHeight
-  camera.updateProjectionMatrix()
-  iResolution.value.set(window.innerWidth * dpr, window.innerHeight * dpr)
-}
+  const width = window.innerWidth
+  const height = window.innerHeight
 
+  renderer.setSize(width, height)
+  camera.aspect = width / height
+  camera.updateProjectionMatrix()
+}
 window.addEventListener('resize', resize)
 resize()
-initControls()
+
+let previous = performance.now()
 
 function animate() {
-  const time = performance.now()
-  const delta = Math.min((time - prevTime) / 1000, 0.016)
-  prevTime = time
+  const now = performance.now()
+  const delta = Math.min((now - previous) / 1000, 1 / 30)
+  previous = now
 
-  const elapsed = time * 0.001
-  iTime.value = elapsed
-  cameraPos.value.copy(camera.position)
-  worldPos.value.copy(water.position)
+  const elapsed = now / 1000
 
-  flotsamGroup.children.forEach((obj: any) => {
-    obj.position.y += Math.sin(elapsed + obj.userData.floatOffset) * 0.01 * obj.userData.floatSpeed
-    obj.rotation.y += 0.001 * obj.userData.floatSpeed
-  })
+  swim.update(delta)
 
-  updateMovement(delta)
+  uTime.value = elapsed
+  uChoppy.value = 4 + Math.min(swim.speed / 12, 1) * 1.6
+
+  flotsam.update(elapsed)
+
+  if (swim.locked) {
+    readouts.textContent = `${Math.hypot(camera.position.x, camera.position.z).toFixed(0)} m · ${camera.position.y.toFixed(1)} m`
+  }
+
   renderer.render(scene, camera)
   requestAnimationFrame(animate)
 }
 
-prevTime = performance.now()
 animate()
