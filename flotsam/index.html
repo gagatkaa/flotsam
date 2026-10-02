@@ -24,6 +24,12 @@
       </div>
       <ul id="bearings"></ul>
       <ul id="build-list"></ul>
+      <div class="load">
+        <span id="load-crew">crew 3</span>
+        <span id="load-pass">rescued 0</span>
+        <span id="load-gold">gold 0</span>
+        <span id="load-food">rations 8</span>
+      </div>
     </div>
 
     <div id="readout"></div>
@@ -31,6 +37,18 @@
     <div id="chart" class="hidden"></div>
 
     <div id="draft" class="hidden"></div>
+
+    <div id="pause" class="hidden">
+      <div class="sheet">
+        <h2>Paused</h2>
+        <p class="keys">
+          <b>W</b> sail<i>·</i><b>S</b> back the sail<i>·</i><b>A</b><b>D</b> helm<i>·</i>
+          <b>Mouse</b> look<i>·</i><b>Esc</b> pause
+        </p>
+        <button id="resume" type="button">Resume</button>
+        <p class="stat" id="pause-stat"></p>
+      </div>
+    </div>
 
     <div id="overlay" class="hidden">
       <h1>flotsam</h1>

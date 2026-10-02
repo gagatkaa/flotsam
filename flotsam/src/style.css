@@ -196,7 +196,8 @@ body.locked #crosshair {
 }
 
 #chart,
-#draft {
+#draft,
+#pause {
   position: fixed;
   inset: 0;
   z-index: 5;
@@ -224,8 +225,66 @@ body.locked #crosshair {
 }
 
 #chart.hidden,
-#draft.hidden {
+#draft.hidden,
+#pause.hidden {
   display: none;
+}
+
+/* ---- pause ---- */
+#pause {
+  z-index: 7;
+  background: rgba(3, 12, 20, 0.72);
+  backdrop-filter: blur(5px);
+}
+
+#pause .sheet {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  padding: 40px 56px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 20, 30, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+#pause h2 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 300;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+#pause .stat {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+#resume {
+  padding: 14px 44px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 5px;
+  background: #fff;
+  color: #06161f;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 130ms ease,
+    color 130ms ease;
+}
+
+#resume:hover,
+#resume:focus-visible {
+  background: transparent;
+  color: #fff;
+  outline: none;
 }
 
 /* ---- the opening page ---- */
@@ -405,7 +464,7 @@ body.locked #crosshair {
 #draft {
   grid-auto-flow: row;
   justify-items: stretch;
-  max-width: 760px;
+  max-width: 840px;
   margin: 0 auto;
 }
 
@@ -420,20 +479,21 @@ body.locked #crosshair {
 
 #draft .scene h2 {
   margin: 0 0 14px;
-  font-size: 32px;
+  font-size: 38px;
   font-weight: 300;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   text-align: center;
 }
 
+/* the story line is the thing being read, so it gets the size */
 #draft .scene p,
 #chart .scene p {
   margin: 0;
-  max-width: 60ch;
-  font-size: 18px;
-  line-height: 170%;
-  color: rgba(255, 255, 255, 0.9);
+  max-width: 54ch;
+  font-size: 22px;
+  line-height: 165%;
+  color: rgba(255, 255, 255, 0.92);
   text-align: center;
 }
 
@@ -446,6 +506,28 @@ body.locked #crosshair {
 
 #draft .card {
   width: auto;
+  padding: 18px 22px;
+}
+
+#draft .card strong {
+  font-size: 19px;
+}
+
+/* the promise: what this choice hands over or costs, before you commit */
+#draft .card .preview {
+  padding-left: 12px;
+  border-left: 2px solid rgba(255, 255, 255, 0.22);
+  font-size: 16px;
+  line-height: 160%;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+#draft .card .mods {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 #log {
@@ -597,3 +679,32 @@ body.locked #crosshair {
   color: rgba(255, 255, 255, 0.7);
 }
 
+
+
+/* card descriptions in the build list */
+#build-list li .desc {
+  display: block;
+  margin-top: 2px;
+  padding-left: 26px;
+  font-size: 11px;
+  line-height: 140%;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+
+#hud .load {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+#hud .load span {
+  white-space: nowrap;
+}

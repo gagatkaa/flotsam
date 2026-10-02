@@ -1,52 +1,45 @@
 import { CARDS } from './cards'
 import type { IslandEvent } from './run'
 
-/**
- * The seven islands. `requires` / `blockedBy` on a choice is what lets an
- * earlier decision change a later island, which is the point of the whole
- * thing: any order you sail in, the run is different.
- */
+function byId(id: string) {
+  const card = CARDS.find((c) => c.id === id)
+  if (!card) throw new Error(`event references unknown card: ${id}`)
+  return card
+}
+
 export const EVENTS: Record<string, IslandEvent> = {
   wreck: {
     island: 'wreck',
     title: 'The Wreck',
     telling:
-      'You find her at first light, bow under and stern up, which is how you know ' +
-      'she went down forward and fought it the whole way. Thirty feet of her are ' +
-      'still dry. Somebody lashed the captain to his own wheel before the water ' +
-      'came, and the lashing has held, which means it happened faster than he ' +
-      'could think to cut himself free.',
+      'You find her at first light, bow under and stern up. Thirty feet of her are still dry. Somebody lashed the captain to his own wheel before the water came, and the lashing has held.',
     adventure:
-      'You take the boat in on the lee side and go over the rail. There is a ' +
-      'chart case still lashed above the chart table, and the chart table is ' +
-      'what you came for.',
+      'You bring her alongside the lee side and go over the rail. The chart case above the table is still lashed shut. The hold is split open.',
     choices: [
       {
-        text: 'Go below. Whatever cargo she was carrying is still down there.',
-        outcome: "Went below in the wreck. Took her chart off the captain's table.",
+        text: 'Go below. Risk the flooding hold to strip her timbers.',
+        preview:
+          'You go down into the hold while she is still flooding. Her deep keel timbers are better than yours, so you pry one loose. The water follows you in and costs you 12 hull. You come up with the chart.',
+        outcome: 'Went below the wreck, stripped a deep keel, paid 12 hull for it.',
         piece: 'wreck',
         gain: byId('keel'),
         damage: 12,
-        sets: 'robbed-wreck',
       },
       {
-        text: "Take the wheel off the captain and burn it with his name on it.",
-        outcome: "Took the wheel off the captain. Burned his name off it. Took her chart.",
+        text: 'Free the captain. Cut him loose and take him aboard.',
+        preview:
+          'You cut the lashing. He is half dead, but he is a sailor. He knows the lines and knows where she stowed her powder. You lose 8 hull pulling him clear, gain a hand, and take the chart.',
+        outcome: 'Cut the captain loose, took him aboard, lost 8 hull.',
         piece: 'wreck',
         gain: byId('blackpowder'),
-        sets: 'burned-name',
+        damage: 8,
+        crewDelta: 1,
       },
       {
-        text: 'Cut the lashings and put him in the water. He chose the wheel.',
-        outcome: 'Cut the captain loose and put him in the water. Took her chart.',
-        piece: 'wreck',
-        damage: 18,
-        sets: 'killed-wreck',
-        gain: byId('plating'),
-      },
-      {
-        text: 'Leave her. Do not touch anything.',
-        outcome: 'Left the wreck alone. Took the chart off the wheelhouse door.',
+        text: 'Leave her. Take only the chart and what is already loose.',
+        preview:
+          'You take nothing but the chart off the wheelhouse door and some running rigging coiled where it stayed dry. No one hurt, no one bought, and you take the chart.',
+        outcome: 'Left the wreck alone, took her chart and spare rigging.',
         piece: 'wreck',
         gain: byId('rigging'),
       },
@@ -57,42 +50,29 @@ export const EVENTS: Record<string, IslandEvent> = {
     island: 'gallows',
     title: 'Gallows Cay',
     telling:
-      'It is low, flat and green, and the only thing standing on it is a post ' +
-      'with a chart nailed to it. The post is a gallows. The chart is half ' +
-      'coastline, and half of that is yours - your own harbour, drawn by someone ' +
-      'who had stood exactly where you are standing.',
+      'It is low, flat and green, and the only thing standing on it is a post with a chart nailed to it. The post is a gallows.',
     adventure:
-      'At the bottom, in a hand that ran out of room, four words: *they hang for ' +
-      'this here*. And below that, scratched into the post itself, the same ' +
-      'warning in a different hand. Twice, then. That means it worked at least ' +
-      'once, and that means there is somebody here.',
+      'Four words are scratched beneath it: they hang for this here. The chart is half coastline, and half of that is yours.',
     choices: [
       {
-        text: 'Take the chart, and the spy-glass that came with it.',
-        outcome: 'Took the chart and the glass off the gallows.',
+        text: 'Take the chart and the spy-glass that came with it.',
+        preview: 'You take the chart down and the spy-glass hung beside it. From here on you can read the bearing to every island from your own deck.',
+        outcome: "Took the chart and the Navigator's glass off the gallows.",
         piece: 'gallows',
         gain: byId('glass'),
-        sets: 'took-chart',
       },
       {
         text: 'Leave it. You are not the only lost crew out here.',
-        outcome: 'Left the chart where it hung. But not empty-handed.',
+        preview: 'You leave the chart where it hung and take the iron off the post instead. Something here knows you passed, and knows you left.',
+        outcome: 'Left the chart where it hung, took iron for the helm.',
         piece: 'gallows',
         gain: byId('helm'),
-        sets: 'left-chart',
-      },
-      {
-        text: 'Burn it. Nobody follows a map nobody has.',
-        outcome: 'Burned the chart.',
-        piece: 'gallows',
-        sets: 'burned-chart',
-        requires: 'took-chart',
       },
       {
         text: 'Take the chart and leave your own name nailed under it.',
-        outcome: 'Took the chart. Left a name nailed under it.',
+        preview: 'You nail your own name under the chart so whoever comes looking knows who has it. The powder off the post comes away with you.',
+        outcome: 'Took the chart, left a name, took powder.',
         piece: 'gallows',
-        requires: 'killed-wreck',
         gain: byId('blackpowder'),
         sets: 'named-yourself',
       },
@@ -103,48 +83,30 @@ export const EVENTS: Record<string, IslandEvent> = {
     island: 'kitchen',
     title: 'Kitchen Rock',
     telling:
-      'Low, black and flat on top, and from a long way off it does look like the ' +
-      'back of a stove with something still in it. The smell gets you first: wood ' +
-      'smoke and something cooking, which should not be possible on a rock ' +
-      'nobody has lived on for a year. There is smoke. Somebody is down there ' +
-      'keeping a fire going.',
+      'Low, black and flat on top, and from a long way off it does look like the back of a stove with something still in it. The smell of wood smoke means somebody is keeping a fire going.',
     adventure:
-      'You get as far as the ledge before a woman stands up out of the scrub with ' +
-      'a long hook in her hand and does not raise it. Behind her, a pit, a pot, ' +
-      'and eight or nine people who have clearly been eating for a while. She says ' +
-      'nothing for long enough that you think she means to let you leave. Then she ' +
-      'says: you have a chart. We have a fire. Those are two different kinds of ' +
-      'thing to be.',
+      'You get as far as the ledge before a woman stands up out of the scrub with a long hook in her hand. Behind her, a pit, a pot, and people keeping a fire.',
     choices: [
       {
         text: 'Trade with them. Meat for a share of the chart.',
-        outcome: 'Traded meat for a share of the Kitchen Rock chart.',
+        preview: 'You hand over the meat you have. She breaks a corner off the chart for you and throws in a length of her hull plating. Fair trade, and you take the chart.',
+        outcome: 'Traded meat for the Kitchen Rock chart and plating.',
         piece: 'kitchen',
         gain: byId('plating'),
-        sets: 'traded-kitchen',
-      },
-      {
-        text: 'Take the fire by force while they sleep.',
-        outcome: 'Took the Kitchen Rock fire while they slept.',
-        piece: 'kitchen',
-        gain: byId('blackpowder'),
-        damage: 16,
-        sets: 'robbed-kitchen',
-        requires: 'killed-wreck',
       },
       {
         text: 'Ask for water and nothing else. Give them nothing.',
-        outcome: 'Asked the Kitchen Rock people for water. Gave nothing.',
+        preview: 'You ask for water and hand over nothing. She gives it to you anyway, and the pumps off her fire, and the chart.',
+        outcome: 'Asked for water, took Kitchen Rock chart and pumps.',
         piece: 'kitchen',
         gain: byId('pumps'),
-        sets: 'thieved-kitchen',
       },
       {
         text: 'Take the pot and go. Leave them the fire.',
-        outcome: 'Took their pot and left them the fire.',
+        preview: 'The hook catches you on the ledge on the way down and costs you 8 hull. The fire is the thing they needed, and it is still burning behind you when you reach the water, so they let you have the chart to go with it.',
+        outcome: 'Took the pot, paid 8 hull for the Kitchen Rock chart.',
         piece: 'kitchen',
         damage: 8,
-        sets: 'took-pot',
       },
     ],
   },
@@ -153,57 +115,35 @@ export const EVENTS: Record<string, IslandEvent> = {
     island: 'bones',
     title: 'The Bones',
     telling:
-      'The rock is white, and the beach is not entirely sand. You can see it ' +
-      'sitting under the water and you can see what it is before you are close ' +
-      'enough to be embarrassed about guessing. It is very regular. It is stacked. ' +
-      'Something out here arranged this.',
+      'The rock is white, and the beach is not entirely sand. It is very regular. It is stacked. Something out here arranged this.',
     adventure:
-      'Ribs, in a row, big as your boat, going up into the cliff face where they ' +
-      'disappear into a seam of black rock. Somebody has been living in the mouth ' +
-      'of it, and has laid out everything the sea would not take. In the middle of ' +
-      'the arrangement, weighted down with stones, is a roll of oilcloth with a ' +
-      'chart in it and no name on the outside.',
+      'Ribs, in a row, big as your boat, going up into the cliff face where they disappear into black rock. In the middle is a roll of oilcloth with a chart in it.',
     choices: [
       {
-        text: 'Take the oilcloth. The bones were somebody\'s before they were a chart.',
-        outcome: 'Took the chart from the Bones.',
-        piece: 'bones',
-        damage: 8,
-        sets: 'took-bones',
-      },
-      {
         text: 'Take the chart and re-lay the bones the way you found them.',
-        outcome: 'Took the chart. Re-laid the bones.',
+        preview: 'You put the chart in your coat and put the bones back the way you found them, which takes the whole night. The iron off the post makes your helm answer faster. You take the chart.',
+        outcome: 'Took the chart from the Bones, re-laid them, upgraded the helm.',
         piece: 'bones',
         gain: byId('helm'),
-        sets: 'tended-bones',
       },
       {
-        text: 'Take a rib for the boat. The hull is open and you are four days out.',
-        outcome: 'Took a rib from the Bones for the hull.',
+        text: 'Take a rib for the boat. The hull is open and you are days out.',
+        preview: 'You take a rib and line the split in the hull with it. It holds. It just hurts, and costs you 12 hull to fit. You take the chart.',
+        outcome: 'Took a rib from the Bones, patched hull, took the chart.',
         piece: 'bones',
         gain: byId('tight-fit'),
         damage: 12,
-        sets: 'took-rib',
       },
       {
-        text: 'Bury what is left of your own dead here. They would have wanted the company.',
-        outcome: 'Buried your own dead at the Bones.',
+        text: "Take the oilcloth. The bones were somebody's before they were a chart.",
+        preview: 'You lift the roll out of the middle of the arrangement. Something in the cave above you objects, and finding out how costs you 8 hull. The chart is yours.',
+        outcome: 'Took the chart from the Bones, paid 8 hull.',
         piece: 'bones',
-        gain: byId('double-crew'),
-        sets: 'buried-own',
-        requires: 'killed-wreck',
+        damage: 8,
       },
     ],
   },
 }
-
-function byId(id: string) {
-  const card = CARDS.find((c) => c.id === id)
-  if (!card) throw new Error(`event references unknown card: ${id}`)
-  return card
-}
-
 export function eventFor(id: string): IslandEvent | undefined {
   return EVENTS[id]
 }

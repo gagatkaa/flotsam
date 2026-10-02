@@ -6,7 +6,10 @@ export type Phase = 'intro' | 'sailing' | 'telling' | 'ashore' | 'home' | 'dead'
 export interface Choice {
   /** the line the player clicks */
   text: string
-  /** shown as consequences once it's picked */
+  /** what this choice will do or hand you, in the player's own words. shown on
+   * the card before it is picked, so nothing is ever a surprise */
+  preview: string
+  /** the past-tense log line added to the voyage log once it is picked */
   outcome: string
   /** a card you walk away with */
   gain?: Card
@@ -22,6 +25,15 @@ export interface Choice {
   requires?: string
   /** hide the choice once this flag is set */
   blockedBy?: string
+
+  /** change to the crew (positive = you find/take a hand, negative = you lose one) */
+  crewDelta?: number
+  /** people you take aboard who do not work the sheets */
+  passengersDelta?: number
+  /** coin, plate, or valuables you take */
+  goldDelta?: number
+  /** food gained or lost */
+  provisionsDelta?: number
 }
 
 export interface IslandEvent {
@@ -62,6 +74,11 @@ export class Run {
   log: string[] = []
   /** flags set by choices, read by other islands' choices */
   flags = new Set<string>()
+  /** what you are carrying on deck, not what you have bolted to it */
+  crew = 3
+  passengers = 0
+  gold = 0
+  provisions = 8
 
   private readonly events: RunEvents
 
@@ -70,7 +87,12 @@ export class Run {
   }
 
   get stats() {
-    return resolve(this.deck)
+    return resolve(this.deck, {
+      crew: this.crew,
+      passengers: this.passengers,
+      gold: this.gold,
+      provisions: this.provisions,
+    })
   }
 
   counts(): Map<Card, number> {
@@ -117,6 +139,24 @@ export class Run {
     if (choice.sets) this.flags.add(choice.sets)
 
     if (choice.piece) this.pieces.add(choice.piece)
+
+    if (choice.crewDelta !== undefined) this.crew += choice.crewDelta
+    if (choice.passengersDelta !== undefined) this.passengers += choice.passengersDelta
+    if (choice.goldDelta !== undefined) this.gold += choice.goldDelta
+    if (choice.provisionsDelta !== undefined) this.provisions += choice.provisionsDelta
+
+    // do not drop below zero. nobody can hold "negative" people
+    if (this.crew < 0) this.crew = 0
+    if (this.passengers < 0) this.passengers = 0
+    if (this.gold < 0) this.gold = 0
+    if (this.provisions < 0) this.provisions = 0
+
+    // if there is no crew left to sail her, the voyage is over
+    if (this.crew <= 0 && this.phase !== 'dead') {
+      this.phase = 'dead'
+      this.events.onSunk(this.log)
+      return
+    }
 
     this.sail()
   }

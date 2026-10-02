@@ -30,7 +30,7 @@ export class BoatControls extends PointerLockControls {
     // immediately lock the pointer away from the player.
     window.addEventListener('click', (event) => {
       if (this.isLocked) return
-      if ((event.target as HTMLElement).closest('#chart, #draft, #overlay')) return
+      if ((event.target as HTMLElement).closest('#chart, #draft, #overlay, #pause')) return
       this.lock()
     })
   }

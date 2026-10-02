@@ -154,3 +154,7 @@ export function draft(deck: readonly Card[], random: () => number = Math.random)
 
   return hand
 }
+/** the display name for a card id, for anything that refers to a card by id */
+export function cardName(id: string): string {
+  return CARDS.find((c) => c.id === id)?.name ?? id
+}

@@ -29,7 +29,7 @@ export interface Stats {
 export const BASE_STATS: Stats = {
   hull: 100,
   speed: 8.5,
-  accel: 1.6,
+  accel: 1,
   turn: 0.85,
   waveImpact: 1,
   rideHeight: 0.25,
@@ -48,6 +48,25 @@ const CAPS = {
   turn: 2.1,
   waveImpact: 2.2,
 }
+
+/**
+ * What is actually on the boat, as opposed to what has been fitted to it. The
+ * deck is not just cards: a boat carrying nine rescued people and a chest of
+ * coin handles like a barge, and a boat with nobody left to work the lines
+ * handles like nothing at all.
+ */
+export interface Load {
+  /** hands that can work the sheets. This is a crew, not a passenger list */
+  crew: number
+  /** people picked up who do not pull. pure weight */
+  passengers: number
+  /** coin and plate. heavier than it looks */
+  gold: number
+  /** days of food. a short commons makes the crew slow and clumsy */
+  provisions: number
+}
+
+export const STARTING_LOAD: Load = { crew: 3, passengers: 0, gold: 0, provisions: 8 }
 
 export type Modifier = Partial<Record<keyof Stats, number>>
 
@@ -68,8 +87,10 @@ export interface Card {
  * contribute twice, and the order you drafted them in changes nothing. That
  * makes the build readable as a list and keeps the draft honest.
  */
-export function resolve(deck: readonly Card[]): Stats {
+export function resolve(deck: readonly Card[], load: Load = STARTING_LOAD): Stats {
   const stats = { ...BASE_STATS }
+
+  applyLoad(stats, load)
 
   for (const card of deck) {
     if (card.mul) {
@@ -94,7 +115,35 @@ export function resolve(deck: readonly Card[]): Stats {
   // seven islands, six of them worth finding, and one copy already shows all
   stats.lookahead = Math.min(6, Math.max(0, stats.lookahead))
 
+  // you cannot sail with nobody at all. a boat with no hands is going adrift.
+
   return stats
+}
+
+/**
+ * Fold the people and the cargo into the stats. Kept beside resolve() rather
+ * than inside it so the two kinds of weight stay legible: cards change what the
+ * boat is, the load changes what is in it.
+ */
+function applyLoad(stats: Stats, load: Load) {
+  // every passenger is a body in the way and a mouth to feed
+  const crowding = Math.min(0.42, load.passengers * 0.035)
+  stats.speed *= 1 - crowding
+  stats.accel *= 1 - crowding * 0.7
+  stats.turn *= 1 - crowding * 0.3
+
+  // coin is dead weight, and it adds up faster than passengers do
+  stats.speed *= 1 - Math.min(0.28, (load.gold / 100) * 0.05)
+
+  // hands on the lines. one person can just about sail her; more is faster
+  const hands = Math.min(0.55, Math.max(0, load.crew - 1) * 0.13)
+  stats.accel *= 1 + hands
+  stats.turn *= 1 + hands * 0.55
+
+  // a short commons: hungry, wet crew work her slowly and break her easily
+  const hungry = load.provisions <= 0 ? 0.3 : load.provisions < 3 ? 0.14 : 0
+  stats.accel *= 1 - hungry
+  stats.frailty *= 1 + hungry
 }
 
 /** short "speed +12%" lines for the build panel, derived from the same numbers */

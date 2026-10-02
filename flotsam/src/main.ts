@@ -29,6 +29,7 @@ import {
   type World,
 } from './game/world'
 import { eventFor } from './game/events'
+import { cardName } from './game/cards'
 import { Run, type Choice, type IslandEvent } from './game/run'
 import { describe } from './game/stats'
 
@@ -139,6 +140,13 @@ const draftEl = document.querySelector<HTMLDivElement>('#draft')!
 const flash = document.querySelector<HTMLDivElement>('#damage')!
 const windEl = document.querySelector<HTMLSpanElement>('#wind')!
 const bearingsEl = document.querySelector<HTMLUListElement>('#bearings')!
+const pauseEl = document.querySelector<HTMLDivElement>('#pause')!
+const resumeEl = document.querySelector<HTMLButtonElement>('#resume')!
+const pauseStatEl = document.querySelector<HTMLParagraphElement>('#pause-stat')!
+const loadCrewEl = document.querySelector<HTMLSpanElement>('#load-crew')!
+const loadPassEl = document.querySelector<HTMLSpanElement>('#load-pass')!
+const loadGoldEl = document.querySelector<HTMLSpanElement>('#load-gold')!
+const loadFoodEl = document.querySelector<HTMLSpanElement>('#load-food')!
 
 function hidePanels() {
   chartEl.classList.add('hidden')
@@ -147,13 +155,20 @@ function hidePanels() {
 
 function renderBuild() {
   buildEl.innerHTML = ''
-  for (const [card, count] of run.counts()) {
-    const item = document.createElement('li')
-    item.innerHTML =
-      `${count > 1 ? `<b>${count}x</b> ` : ''}${card.name}` +
-      `<span>${describe(card)}</span>`
-    buildEl.appendChild(item)
+  const counts = run.counts()
+  for (const [card, count] of counts) {
+    const li = document.createElement('li')
+    li.innerHTML =
+      `<span class="count">${count > 1 ? `${count}×` : ''}</span> ${card.name} ` +
+      `<span class="effect">${describe(card)}</span>` +
+      `<span class="desc">${card.text}</span>`
+    buildEl.appendChild(li)
   }
+
+  loadCrewEl.textContent = `crew ${run.crew}`
+  loadPassEl.textContent = `rescued ${run.passengers}`
+  loadGoldEl.textContent = `gold ${run.gold}`
+  loadFoodEl.textContent = `rations ${run.provisions}`
 }
 
 // ---- opening: the situation, the seven, then cast off
@@ -183,7 +198,7 @@ function showIntro() {
     '<li class="last"><b>Homeward</b><span>Salt-white, and far</span></li>' +
 
     '<p class="keys">' +
-    '<b>W</b><b>S</b> throttle<i>·</i><b>A</b><b>D</b> rudder<i>·</i>' +
+    '<b>W</b> sail<i>·</i><b>S</b> back the sail<i>·</i><b>A</b><b>D</b> helm<i>·</i>' +
     '<b>Mouse</b> look<i>·</i><b>Esc</b> release cursor' +
     '</p>'
 
@@ -210,6 +225,7 @@ function showIntro() {
 function closePanels() {
   hidePanels()
   overlay.classList.add('hidden')
+  ship.hold = false
 }
 
 function showNothingHere(island: Island) {
@@ -375,14 +391,33 @@ function showAshore(event: IslandEvent) {
     const button = document.createElement('button')
     button.className = 'card'
 
-    const consequences: string[] = []
-    if (choice.gain) consequences.push(`+ ${choice.gain.name}`)
-    if (choice.lose) consequences.push(`- ${choice.lose}`)
-    if (choice.damage) consequences.push(`- ${choice.damage} hull`)
+    // Every choice says what it will hand over and what it will cost, in prose
+    // and then in hard numbers, so the decision is never a guess.
+    const gains: string[] = []
+    const costs: string[] = []
+    if (choice.piece) gains.push(`${event.title} chart piece`)
+    if (choice.gain) gains.push(choice.gain.name)
+    if (choice.crewDelta && choice.crewDelta > 0) gains.push(`${choice.crewDelta} crew`)
+    if (choice.passengersDelta && choice.passengersDelta > 0) gains.push(`${choice.passengersDelta} rescued`)
+    if (choice.goldDelta && choice.goldDelta > 0) gains.push(`${choice.goldDelta} gold`)
+    if (choice.provisionsDelta && choice.provisionsDelta > 0) gains.push(`${choice.provisionsDelta} rations`)
+
+    if (choice.crewDelta && choice.crewDelta < 0) costs.push(`${Math.abs(choice.crewDelta)} crew`)
+    if (choice.passengersDelta && choice.passengersDelta < 0) costs.push(`${Math.abs(choice.passengersDelta)} rescued`)
+    if (choice.goldDelta && choice.goldDelta < 0) costs.push(`${Math.abs(choice.goldDelta)} gold`)
+    if (choice.provisionsDelta && choice.provisionsDelta < 0) costs.push(`${Math.abs(choice.provisionsDelta)} rations`)
+    if (choice.lose) costs.push(`${cardName(choice.lose)}`)
+    if (choice.damage) costs.push(`${choice.damage} hull`)
+
+    const mods = [
+      ...gains.map((g) => `+ ${g}`),
+      ...costs.map((c) => `\u2212 ${c}`),
+    ].join('   ')
 
     button.innerHTML =
       `<span class="text">${choice.text}</span>` +
-      (consequences.length ? `<span class="mods">${consequences.join('  ')}</span>` : '')
+      `<span class="preview">${choice.preview}</span>` +
+      (mods ? `<span class="mods">${mods}</span>` : '')
 
     button.addEventListener('click', () => take(choice))
     hand.appendChild(button)
@@ -434,10 +469,11 @@ function showHome(log: string[]) {
 }
 
 function openPanel() {
+  hidePause()
   draftEl.classList.remove('hidden')
   overlay.classList.add('hidden')
   document.body.classList.remove('locked')
-  if (controls.isLocked) controls.unlock()
+  applyModal()
 }
 
 renderBuild()
@@ -463,12 +499,67 @@ function lock() {
 }
 
 controls.addEventListener('lock', () => {
+  hidePause()
   overlay.classList.add('hidden')
   document.body.classList.add('locked')
 })
 controls.addEventListener('unlock', () => {
   document.body.classList.remove('locked')
+  if (run.phase === 'sailing' && !panelIsOpen()) showPause()
 })
+
+resumeEl.addEventListener('click', () => {
+  hidePause()
+  lock()
+})
+
+// Esc while the menu is up puts you straight back on the tiller
+window.addEventListener('keydown', (event) => {
+  if (event.code !== 'Escape') return
+  if (pauseEl.classList.contains('hidden')) return
+  event.preventDefault()
+  hidePause()
+  lock()
+})
+
+// ---- pause: Esc releases the pointer, and releasing the pointer opens this.
+// A panel of the game's own also releases it, so only treat it as a pause when
+// nothing else has the screen.
+function panelIsOpen() {
+  return (
+    !chartEl.classList.contains('hidden') || !draftEl.classList.contains('hidden')
+  )
+}
+
+/**
+ * A panel of the game's own is modal: the boat is anchored, the helm does
+ * nothing and the pointer is handed back so the choice can be clicked. Browsers
+ * can refuse a pointer lock request, so the unlock is re-asserted every frame
+ * while the panel is up rather than trusted to land once.
+ */
+function applyModal() {
+  const modal = panelIsOpen()
+  ship.hold = modal
+  if (modal && controls.isLocked) controls.unlock()
+  return modal
+}
+
+function showPause() {
+  const visited = run.visited.size - (run.visited.has('homeward') ? 1 : 0)
+  const unvisited = world.islands.filter((i) => i.id !== 'homeward').length - visited
+  pauseStatEl.textContent =
+    `${run.pieces.size}/${CHART_PIECES} of the chart · ` +
+    `${visited} island${visited === 1 ? '' : 's'} walked · ` +
+    `${unvisited} to go`
+
+  pauseEl.classList.remove('hidden')
+  overlay.classList.add('hidden')
+  document.body.classList.remove('locked')
+}
+
+function hidePause() {
+  pauseEl.classList.add('hidden')
+}
 
 // ----------------------------------------------------------------------- loop
 function resize() {
@@ -499,10 +590,17 @@ function animate() {
   waves.time = elapsed
   waves.choppy = choppy
 
-  // no throttle and no steering unless you're actually under way
-  const sailing = run.phase === 'sailing'
+  // no throttle and no steering unless you are actually sailing and holding
+  // the tiller. Without the isLocked check, W drives the boat from the pause menu.
+  const sailing = run.phase === 'sailing' && controls.isLocked
 
-  ship.update(delta, waves, sailing ? controls.throttle : 0, sailing ? controls.rudder : 0)
+  const modal = applyModal()
+  ship.update(
+    delta,
+    waves,
+    sailing && !modal ? controls.throttle : 0,
+    sailing && !modal ? controls.rudder : 0,
+  )
 
   // becalmed, the wind sets you down and you can do nothing about it
   if (!sailing) {
@@ -553,7 +651,7 @@ function animate() {
 
   // ---- arrival: no destination was ever chosen, so you simply arrive
   // wherever you happen to have sailed into
-  if (run.phase === 'sailing') {
+  if (sailing) {
     for (const island of world.islands) {
       const distance = Math.hypot(
         ship.position.x - island.position.x,

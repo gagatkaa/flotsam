@@ -5,8 +5,30 @@ import type { Stats } from '../game/stats'
 const HULL_LENGTH = 1.6
 const HIT_COLOR = new THREE.Color(0xff5533)
 
-/** how much slower the boat sheds way than it puts it on */
-const COAST = 0.55
+/**
+ * How much slower the boat sheds way than she puts it on. She coasts a long
+ * while, which is the other half of feeling like a boat: momentum you have to
+ * plan for, not speed you can cancel.
+ */
+const COAST = 0.32
+
+/** how hard backing the sail stops her, against merely easing it */
+const BACKWIND = 1
+
+/** how much speed a hard turn bleeds away. a boat that turns for free is a launch */
+const TURN_DRAG = 0.55
+
+/** how far she lies over at full sail, in radians */
+const HEEL = 0.19
+
+/**
+ * With the rudder going only needs way on, a boat stopped dead cannot be
+ * steered at all. Since S is a brake rather than astern, that leaves nowhere to
+ * turn to. She will swing her head round at this fraction of full helm while
+ * she has almost no way on, which reads as working the helm slowly and keeps a
+ * dead-stalled boat from being stranded pointing at nothing.
+ */
+const REST_HELM = 0.25
 
 /**
  * Low-poly sloop built from primitives, riding the CPU mirror of the shader's
@@ -22,6 +44,10 @@ export class Ship {
   /** the point a camera rides on */
   readonly cameraMount = new THREE.Object3D()
   readonly velocity = new THREE.Vector3()
+  /** how hard the helm is over, -1 to 1. kept around so the deck can heel into it */
+  turnLoad = 0
+  /** set while the player is ashore: she is anchored at the island, not gliding */
+  hold = false
   readonly position = new THREE.Vector3()
 
   hp: number
@@ -110,6 +136,16 @@ export class Ship {
   update(delta: number, waves: WaveField, throttle: number, rudder: number) {
     const stats = this.stats
 
+    // Ashore. Whatever way on she carried in with, she is anchored now, so the
+    // scene stays put while the player reads and answers instead of drifting
+    // past the island underneath the story.
+    if (this.hold) {
+      this.speed = 0
+      this.turnLoad = 0
+      throttle = 0
+      rudder = 0
+    }
+
     // pumps claw back speed once the bilge is winning
     const pumps = this.health < 0.5 ? stats.pumps : 1
     const maxSpeed = stats.speed * pumps
@@ -119,22 +155,42 @@ export class Ship {
       this.speed -= this.speed * Math.min(1, 1.8 * delta)
       this.roll += (1.1 - this.roll) * Math.min(1, 1.5 * delta)
     } else {
-      // ---- speed: drive toward what the throttle asks for.
-      // Accelerating and coasting are separate rates, because a boat under sail
-      // comes up slowly and stops slowly, and the gap between those two numbers
-      // is most of what stops it feeling like a launch.
-      const ahead = maxSpeed * throttle
+      // ---- speed. A sail cannot push backwards, so S is not reverse: it is
+      // backing the sheet, which stops her far harder than easing does. Losing
+      // that distinction is most of what makes a saildriven boat feel like a
+      // launch with a sail on it.
+      const eased = THREE.MathUtils.clamp(throttle, 0, 1)
+      const backing = Math.max(0, -throttle)
+
+      const ahead = maxSpeed * eased
       const toward = ahead - this.speed
-      const rate = toward > 0 ? stats.accel : stats.accel * COAST
+
+      // easing the sheet coasts, backing it stops her, and trimming up fills
+      const rate = backing > 0
+        ? stats.accel * BACKWIND
+        : toward > 0
+          ? stats.accel
+          : stats.accel * COAST
+
       this.speed += toward * Math.min(1, rate * delta)
 
-      if (throttle === 0 && Math.abs(this.speed) < 0.05) this.speed = 0
-      this.speed = THREE.MathUtils.clamp(this.speed, -maxSpeed * 0.27, maxSpeed)
+      if (eased === 0 && backing === 0 && this.speed < 0.05) this.speed = 0
+      this.speed = THREE.MathUtils.clamp(this.speed, 0, maxSpeed)
 
-      // ---- rudder authority: speed gives grip, but a helm upgrade works at rest
+      // ---- rudder authority: way on gives grip, a helm upgrade works at rest,
+      // and stopped she still swings her head round rather than freezing
       const fromWay = Math.min(1, Math.abs(this.speed) / 2.5)
-      const authority = Math.max(stats.helmFloor, fromWay)
-      this.yaw -= rudder * stats.turn * authority * Math.sign(this.speed || 1) * delta
+      const stopped = fromWay < 0.08
+      const authority = stopped
+        ? REST_HELM
+        : Math.max(stats.helmFloor, fromWay)
+      const helm = rudder * authority * Math.sign(this.speed || 1)
+      this.yaw -= helm * stats.turn * delta
+
+      // ---- she loses way round a turn, and loses it faster the harder she is
+      // put over. Turning should be a thing you spend speed to do.
+      this.speed -= this.speed * Math.abs(helm) * TURN_DRAG * delta
+      this.turnLoad = helm
     }
 
     this.forward.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw))
@@ -158,7 +214,16 @@ export class Ship {
 
     const follow = 1 - Math.min(1, 6 * delta)
     const impact = stats.waveImpact
-    const targetRoll = this.sinking ? 1.1 : Math.atan2(starboard - port, e * 2) * 0.7 * impact
+
+    // ---- heel under sail: she lies over with way on, and leans further into
+    // a turn. Without this the boat sits bolt upright under full sail, which is
+    // the clearest tell that it is not being driven by the wind.
+    const loaded = Math.min(1, Math.abs(this.speed) / Math.max(1, this.stats.speed))
+    const heel = this.sinking ? 0 : HEEL * loaded * (0.6 + Math.abs(this.turnLoad) * 0.25)
+    const turnHeel = this.sinking ? 0 : -this.turnLoad * HEEL * 0.55
+
+    const waveRoll = Math.atan2(starboard - port, e * 2) * 0.7 * impact
+    const targetRoll = this.sinking ? 1.1 : waveRoll + heel + turnHeel
     this.pitch += (this.sinking ? this.pitch : Math.atan2(bow - stern, e * 2) * impact - this.pitch) * follow
     this.roll += (targetRoll - this.roll) * follow
 
