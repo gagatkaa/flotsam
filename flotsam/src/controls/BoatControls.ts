@@ -1,54 +1,49 @@
 import * as THREE from 'three/webgpu'
-import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js'
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js'
+
+const THROTTLE_RATE = 3
+const RUDDER_RATE = 2.6
 
 /**
- * Look with the mouse, drive with the keyboard.
- * Throttle and rudder are smoothed here so the boat feels like it has mass.
+ * Mouse look through PointerLockControls, plus the sailing inputs: W/S for
+ * throttle, A/D for rudder.
  */
-export class BoatControls {
-  readonly controls: PointerLockControls
+export class BoatControls extends PointerLockControls {
+  throttle = 0
+  rudder = 0
 
-  throttle: number
-  rudder: number
+  private readonly keys = new Set<string>()
 
-  private readonly keys: Record<string, boolean> = {}
+  constructor(camera: THREE.Camera, domElement: HTMLElement) {
+    super(camera, domElement)
 
-  constructor(camera: THREE.PerspectiveCamera, canvas: HTMLCanvasElement) {
-    this.throttle = 0
-    this.rudder = 0
-    this.controls = new PointerLockControls(camera, canvas)
-
-    // listen on the window, not the canvas: the HUD overlay covers the canvas
-    window.addEventListener('click', () => {
-      if (!this.controls.isLocked) this.controls.lock()
+    window.addEventListener('keydown', (event) => {
+      this.keys.add(event.code)
     })
-
-    window.addEventListener('keydown', (e) => { this.keys[e.code] = true })
-    window.addEventListener('keyup', (e) => { this.keys[e.code] = false })
-    window.addEventListener('blur', () => {
-      for (const code of Object.keys(this.keys)) this.keys[code] = false
+    window.addEventListener('keyup', (event) => {
+      this.keys.delete(event.code)
     })
-  }
+    window.addEventListener('blur', () => this.keys.clear())
 
-  get locked() {
-    return this.controls.isLocked
+    // listen on window, not the canvas: the HUD overlay covers the canvas.
+    // Ignore clicks that land inside a panel, or picking an island would
+    // immediately lock the pointer away from the player.
+    window.addEventListener('click', (event) => {
+      if (this.isLocked) return
+      if ((event.target as HTMLElement).closest('#chart, #draft, #overlay')) return
+      this.lock()
+    })
   }
 
   update(delta: number) {
     const keys = this.keys
-    const smooth = 1 - Math.min(1, 4 * delta)
+    const throttleTarget = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0)
+    const rudderTarget = (keys.has('KeyA') ? 1 : 0) - (keys.has('KeyD') ? 1 : 0)
 
-    const targetThrottle =
-      (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0)
-    const targetRudder =
-      (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0)
+    this.throttle += (throttleTarget - this.throttle) * Math.min(1, THROTTLE_RATE * delta)
+    this.rudder += (rudderTarget - this.rudder) * Math.min(1, RUDDER_RATE * delta)
 
-    this.throttle += (targetThrottle - this.throttle) * smooth
-    this.rudder += (targetRudder - this.rudder) * smooth
-
-    if (!this.locked) {
-      this.throttle *= smooth
-      this.rudder *= smooth
-    }
+    if (Math.abs(this.throttle) < 0.001) this.throttle = 0
+    if (Math.abs(this.rudder) < 0.001) this.rudder = 0
   }
 }

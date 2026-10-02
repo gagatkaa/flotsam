@@ -36,7 +36,11 @@ Matching the project name "flotsam" (floating debris on water), create a surface
   Decided 2026-10-02: free swim was replaced by boat handling because "flying" reads as a camera flycam
   rather than a boat. The hull's pitch/roll/heave come from a CPU mirror of the shader's wave field
   (src/objects/WaveField.ts), which is also what puts the debris on the water.
-- Goal: collect the flotsam. Sailing into a piece picks it up; new pieces drift in ahead of you.
+- Combat: left mouse button fires a cannonball where the camera looks (ballistic arc solved for
+  gravity). Three hostile sloops AI-steer to cannon range, orbit, lead the player's movement and
+  return fire. Ships have hull HP; at 0 they roll over and sink, and a replacement sails in.
+  Decided 2026-10-02: replaced the collect-the-flotsam loop, which read as a walking simulator.
+  TODO next: procedural cannon audio, boarding, and ramming damage.
 - Environment: open ocean from the ported shader, sun + fog, drifting debris on the surface
 - Physics: Floating debris (wood planks, bottles, cans, leaves) that drift slowly and react to the
   player. Simple rigid body physics (cannon-es) - NOT in the MVP, procedural bob for now.

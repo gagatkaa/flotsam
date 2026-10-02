@@ -1,8 +1,7 @@
 # Flotsam
 
-Sail a small boat across a WebGPU ocean: **Seascape by TDM**, ported from GLSL to WGSL and rendered
-by three.js `WebGPURenderer`. The boat rides the shader's own wave field, and you collect the flotsam
-drifting on it.
+Pirate naval combat on a WebGPU ocean: **Seascape by TDM**, ported from GLSL to WGSL and rendered by
+three.js `WebGPURenderer`. You sail a sloop, fire its cannons at hostile sloops, and sink them.
 
 **Original shader:** https://www.shadertoy.com/view/Ms2SD1
 (Mirror of the author's own copy: https://github.com/tdmaav/shadertoy/blob/master/Seascape.shader)
@@ -27,14 +26,14 @@ through the water, and the internal fly-camera that ships with the shadertoy ori
 | `#define EPSILON_NRM` | `epsScale` parameter, from `screenSize` |
 | `iMouse` steering | dropped, pointer-lock mouse look drives the camera instead |
 | `#ifdef AA` | not ported (disabled upstream) |
-| fixed `SEA_CHOPPY` | uniform, raised by boat speed — the sea chops up as you accelerate |
+| fixed `SEA_CHOPPY` | uniform, raised by ship speed — the sea chops up as you accelerate |
 
 Porting gotchas worth knowing: WGSL function parameters are immutable (`getSkyColor` needs a local
 copy), `out vec3 p` becomes a `vec4f` return, `let` is reassigned inside the raymarch loop so it has
 to be `var`, GLSL's `uv *= octave_m` is a row-vector times matrix product that WGSL has no operator
 for (spelled out per component), and `smoothstep(0.0, -0.02, y)` is rewritten with ascending edges.
 
-## The boat
+## The ships
 
 The ocean only exists on the GPU, so `src/objects/WaveField.ts` mirrors the shader's wave function on
 the CPU (same hash/noise/octave math, `Math.fround` on the hash to stay near f32). The hull samples
@@ -49,11 +48,14 @@ the `iTime` / choppy uniforms or the boat will drift off the visible waves.
 | click | lock the mouse |
 | `W` / `S` | throttle ahead / astern |
 | `A` / `D` | rudder left / right |
-| mouse | look around |
+| mouse | aim the guns |
+| left mouse button | fire a cannon |
 | `Esc` | release the mouse |
 
-Sail into a piece of flotsam to collect it; it shrinks away and new debris drifts in ahead of you.
-The counter is bottom-right, next to the speed in knots.
+The guns fire where the camera looks, one cannon per click with a reload between shots (guns bar,
+bottom-left). Enemy sloops close to cannon range, orbit, lead your movement and shoot back — hull
+gauge flashes red when you are hit, and a fresh voyage starts when you click from the shipwreck
+card. Kills are counted bottom-left.
 
 ## Stack
 

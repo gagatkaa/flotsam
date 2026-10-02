@@ -9,9 +9,27 @@
   <body>
     <div id="app"></div>
 
+    <div id="damage"></div>
+
     <div id="crosshair"></div>
 
+    <div id="hud">
+      <div class="gauge">
+        <label>hull</label>
+        <div class="track"><span id="hull-fill"></span></div>
+      </div>
+      <div class="row">
+        <span class="stat">chart <b id="pieces">0/6</b></span>
+        <span class="stat" id="wind">adrift</span>
+      </div>
+      <ul id="build-list"></ul>
+    </div>
+
     <div id="readout"></div>
+
+    <div id="chart" class="hidden"></div>
+
+    <div id="draft" class="hidden"></div>
 
     <div id="overlay">
       <h1>flotsam</h1>
@@ -22,7 +40,7 @@
         <li><b>A</b> / <b>D</b> rudder</li>
         <li><b>mouse</b> look around</li>
         <li><b>esc</b> release cursor</li>
-        <li>sail into flotsam to collect it</li>
+        <li>pick an island, sail there, see what it costs you</li>
       </ul>
       <p class="credit">shader: <a href="https://www.shadertoy.com/view/Ms2SD1" target="_blank" rel="noreferrer">Seascape by TDM</a></p>
     </div>
