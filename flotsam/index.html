@@ -8,6 +8,55 @@
   </head>
   <body>
     <div id="app"></div>
+
+    <div id="damage"></div>
+
+    <div id="crosshair"></div>
+
+    <div id="hud">
+      <div class="gauge">
+        <label>hull</label>
+        <div class="track"><span id="hull-fill"></span></div>
+      </div>
+      <div class="row">
+        <span class="stat">chart <b id="pieces">0/6</b></span>
+        <span class="stat" id="wind">adrift</span>
+      </div>
+      <ul id="bearings"></ul>
+      <ul id="build-list"></ul>
+      <div class="load">
+        <span id="load-crew">crew 3</span>
+        <span id="load-pass">rescued 0</span>
+        <span id="load-gold">gold 0</span>
+        <span id="load-food">rations 8</span>
+      </div>
+    </div>
+
+    <div id="readout"></div>
+
+    <div id="chart" class="hidden"></div>
+
+    <div id="draft" class="hidden"></div>
+
+    <div id="pause" class="hidden">
+      <div class="sheet">
+        <h2>Paused</h2>
+        <p class="keys">
+          <b>W</b> sail<i>·</i><b>S</b> back the sail<i>·</i><b>A</b><b>D</b> helm<i>·</i>
+          <b>Mouse</b> look<i>·</i><b>Esc</b> pause
+        </p>
+        <button id="resume" type="button">Resume</button>
+        <p class="stat" id="pause-stat"></p>
+      </div>
+    </div>
+
+    <div id="overlay" class="hidden">
+      <h1>flotsam</h1>
+      <p class="cta">WebGPU is not available in this browser.</p>
+      <p class="sub">Use Chrome or Edge over https, then reload.</p>
+      <p class="credit">shader: <a href="https://www.shadertoy.com/view/Ms2SD1" target="_blank" rel="noreferrer">Seascape by TDM</a></p>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

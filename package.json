@@ -1,0 +1,12 @@
+{
+  "name": "flotsam-root",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "postinstall": "npm --prefix flotsam install",
+    "dev": "npm --prefix flotsam run dev",
+    "build": "npm --prefix flotsam run build",
+    "preview": "npm --prefix flotsam run preview"
+  }
+}

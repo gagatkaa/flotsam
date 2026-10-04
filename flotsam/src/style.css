@@ -1,70 +1,710 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --ink: #f2f7fa;
+  --shade: rgba(4, 20, 30, 0.55);
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  font: 17px/150% var(--sans);
+  color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
 }
 
 body {
   margin: 0;
   overflow: hidden;
+  background: #0a1a26;
+  color: var(--ink);
+  cursor: crosshair;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
 }
 
 #webgl {
   position: fixed;
-  top: 0;
-  left: 0;
+  inset: 0;
   outline: none;
   width: 100%;
   height: 100%;
   display: block;
 }
 
-#app {
+#crosshair {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+body.locked #crosshair {
+  opacity: 1;
+}
+
+#readout {
+  position: fixed;
+  right: 18px;
+  bottom: 16px;
+  font-family: var(--mono);
+  font-size: 20px;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+#hud {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  display: grid;
+  gap: 9px;
+  width: 260px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(6, 20, 30, 0.72);
+  backdrop-filter: blur(6px);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+
+#hud .gauge {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+#hud .track {
+  height: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#hud .track span {
+  display: block;
   height: 100%;
+  width: 100%;
+  background: #7fd4a1;
+  box-shadow: 0 0 8px rgba(127, 212, 161, 0.5);
+  transition: width 120ms linear;
+}
+
+#hud .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#hud .stat b {
+  color: #fff;
+}
+
+/* the instruments. one bearing without the glass, the whole set with it. */
+#bearings {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  list-style: none;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+#bearings:empty {
+  display: none;
+  border-top: 0;
+  margin: 0;
+  padding: 0;
+}
+
+#bearings li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  color: #7cc6ff;
+}
+
+#bearings .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+#bearings .leg {
+  font-family: var(--mono);
+  text-align: right;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* spent: the island still shows, but it is no longer somewhere to go */
+#bearings li.spent .name,
+#bearings li.spent .leg {
+  color: rgba(255, 255, 255, 0.28);
+}
+
+#bearings li.spent .name::after {
+  content: ' ✓';
+  color: #35b06a;
+}
+
+#build-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-size: 13px;
+  line-height: 140%;
+}
+
+#build-list li {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+#build-list li span {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+#build-list li b {
+  color: #ffd27a;
+  margin-right: 4px;
+}
+
+#chart,
+#draft,
+#pause {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 40px 24px;
+  background: radial-gradient(circle at 50% 50%, rgba(3, 12, 20, 0.62), rgba(3, 12, 20, 0.9));
+  backdrop-filter: blur(3px);
+}
+
+#chart {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 250px));
+  align-content: center;
+}
+
+#chart:has(.prologue) {
+  grid-template-columns: 1fr;
+  justify-items: start;
+  align-content: center;
+  gap: 28px;
+  padding-left: clamp(28px, 9vw, 120px);
+}
+
+#chart.hidden,
+#draft.hidden,
+#pause.hidden {
+  display: none;
+}
+
+/* ---- pause ---- */
+#pause {
+  z-index: 7;
+  background: rgba(3, 12, 20, 0.72);
+  backdrop-filter: blur(5px);
+}
+
+#pause .sheet {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  padding: 40px 56px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(6, 20, 30, 0.92);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+#pause h2 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 300;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+#pause .stat {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+#resume {
+  padding: 14px 44px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 5px;
+  background: #fff;
+  color: #06161f;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 130ms ease,
+    color 130ms ease;
+}
+
+#resume:hover,
+#resume:focus-visible {
+  background: transparent;
+  color: #fff;
+  outline: none;
+}
+
+/* ---- the opening page ---- */
+.prologue {
+  display: grid;
+  gap: 30px;
+  justify-items: start;
+  width: min(560px, 90vw);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.prologue h1 {
+  margin: -14px 0 0;
+  font-size: 54px;
+  font-weight: 300;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  color: #fff;
+}
+
+.lede {
+  display: grid;
+  gap: 14px;
+  max-width: 54ch;
+}
+
+.lede p {
+  margin: 0;
+  font-size: 18px;
+  line-height: 172%;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+/* the seven, as a list. a manifest, not a menu. */
+.manifest {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  list-style: none;
+}
+
+.manifest li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.manifest b {
+  font-size: 18px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.manifest span {
+  font-size: 14px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.manifest .last b {
+  color: #ffd27a;
+}
+
+.keys {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.keys b {
+  display: inline-block;
+  min-width: 24px;
+  margin-right: 6px;
+  padding: 3px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.keys i {
+  margin: 0 14px;
+  font-style: normal;
+  opacity: 0.35;
+}
+
+.sail {
+  justify-self: start;
+  padding: 15px 40px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 4px;
+  background: #fff;
+  color: #06161f;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background 130ms ease,
+    color 130ms ease,
+    border-color 130ms ease;
+}
+
+.sail:hover,
+.sail:focus-visible {
+  background: transparent;
+  color: #fff;
+  outline: none;
+}
+
+.scene {
+  gap: 16px;
+  max-width: none;
+}
+
+
+#chart .scene {
+  margin-bottom: 18px;
+}
+
+#draft .scene {
+  gap: 10px;
+}
+
+.go {
+  width: auto;
+  min-width: 220px;
+  padding: 14px 30px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 5px;
+  background: #fff;
+  color: #06161f;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 130ms ease,
+    color 130ms ease;
+}
+
+.go:hover,
+.go:focus-visible {
+  background: transparent;
+  color: #fff;
+  outline: none;
+}
+
+#chart h2 {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 300;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  text-align: center;
+}
+
+#draft {
+  grid-auto-flow: row;
+  justify-items: stretch;
+  max-width: 840px;
+  margin: 0 auto;
+}
+
+#draft .scene,
+#draft .choices {
+  justify-self: center;
+}
+
+#draft .go {
+  justify-self: center;
+}
+
+#draft .scene h2 {
+  margin: 0 0 14px;
+  font-size: 38px;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+/* the story line is the thing being read, so it gets the size */
+#draft .scene p,
+#chart .scene p {
+  margin: 0;
+  max-width: 54ch;
+  font-size: 22px;
+  line-height: 165%;
+  color: rgba(255, 255, 255, 0.92);
+  text-align: center;
+}
+
+#draft .choices {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+#draft .card {
+  width: auto;
+  padding: 18px 22px;
+}
+
+#draft .card strong {
+  font-size: 19px;
+}
+
+/* the promise: what this choice hands over or costs, before you commit */
+#draft .card .preview {
+  padding-left: 12px;
+  border-left: 2px solid rgba(255, 255, 255, 0.22);
+  font-size: 16px;
+  line-height: 160%;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+#draft .card .mods {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+#log {
+  max-width: 60ch;
+  margin: 6px 0 0;
+  padding-left: 22px;
+  font-size: 15px;
+  line-height: 175%;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.card {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(8, 24, 34, 0.92);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.card:hover,
+.card:focus-visible {
+  transform: translateY(-4px);
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(16, 42, 58, 0.95);
+  outline: none;
+}
+
+.card .family {
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #04141d;
+}
+
+.card .family.hull {
+  background: #7fd4a1;
+}
+
+.card .family.sail {
+  background: #ffd27a;
+}
+
+.card .family.utility {
+  background: #7cc6ff;
+}
+
+.card .family.risky {
+  background: #ff7a5c;
+}
+
+.card strong {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.card .text {
+  font-size: 16px;
+  line-height: 145%;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.card .mods {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+#damage {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(180, 20, 10, 0) 40%, rgba(180, 20, 10, 0.55));
+}
+
+#damage.on {
+  animation: hit 420ms ease-out;
+}
+
+@keyframes hit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+  background: #0a1a26;
+  transition: opacity 200ms ease;
+}
+
+#overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#overlay h1 {
+  margin: 0 0 10px;
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: 0.02em;
+}
+
+#overlay .cta {
+  margin: 0;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+#overlay .sub {
+  margin: 0 0 26px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+#overlay .credit {
+  margin: 24px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+#overlay .credit a {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+
+
+/* card descriptions in the build list */
+#build-list li .desc {
+  display: block;
+  margin-top: 2px;
+  padding-left: 26px;
+  font-size: 11px;
+  line-height: 140%;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+
+#hud .load {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+#hud .load span {
+  white-space: nowrap;
 }
