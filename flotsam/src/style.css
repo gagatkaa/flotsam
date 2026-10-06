@@ -5,10 +5,17 @@
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
+  /* the panels read their breathing room from here, so the narrow rules
+     only have to move two numbers */
+  --panel-pad-y: 40px;
+  --panel-pad-x: 24px;
+
   font: 17px/150% var(--sans);
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -54,8 +61,8 @@ body.locked #crosshair {
 
 #readout {
   position: fixed;
-  right: 18px;
-  bottom: 16px;
+  right: max(18px, env(safe-area-inset-right, 0px));
+  bottom: max(16px, env(safe-area-inset-bottom, 0px));
   font-family: var(--mono);
   font-size: 20px;
   letter-spacing: 0.02em;
@@ -66,8 +73,8 @@ body.locked #crosshair {
 
 #hud {
   position: fixed;
-  left: 14px;
-  bottom: 14px;
+  left: max(14px, env(safe-area-inset-left, 0px));
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
   display: grid;
   gap: 9px;
   width: 260px;
@@ -203,23 +210,28 @@ body.locked #crosshair {
   z-index: 5;
   display: grid;
   place-content: center;
+  /* centre when there is room, start when the page is taller than the screen,
+     otherwise the top of a long panel sits outside the scroll range */
+  align-content: safe center;
   justify-items: center;
   gap: 16px;
   overflow-y: auto;
-  padding: 40px 24px;
+  padding:
+    max(var(--panel-pad-y), env(safe-area-inset-top, 0px))
+    max(var(--panel-pad-x), env(safe-area-inset-right, 0px))
+    max(var(--panel-pad-y), env(safe-area-inset-bottom, 0px))
+    max(var(--panel-pad-x), env(safe-area-inset-left, 0px));
   background: radial-gradient(circle at 50% 50%, rgba(3, 12, 20, 0.62), rgba(3, 12, 20, 0.9));
   backdrop-filter: blur(3px);
 }
 
 #chart {
   grid-template-columns: repeat(auto-fit, minmax(230px, 250px));
-  align-content: center;
 }
 
 #chart:has(.prologue) {
   grid-template-columns: 1fr;
   justify-items: start;
-  align-content: center;
   gap: 28px;
   padding-left: clamp(28px, 9vw, 120px);
 }
@@ -238,6 +250,7 @@ body.locked #crosshair {
 }
 
 #pause .sheet {
+  box-sizing: border-box;
   display: grid;
   justify-items: center;
   gap: 22px;
@@ -275,16 +288,23 @@ body.locked #crosshair {
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  touch-action: manipulation;
   transition:
     background 130ms ease,
     color 130ms ease;
 }
 
-#resume:hover,
 #resume:focus-visible {
   background: transparent;
   color: #fff;
   outline: none;
+}
+
+@media (hover: hover) {
+  #resume:hover {
+    background: transparent;
+    color: #fff;
+  }
 }
 
 /* ---- the opening page ---- */
@@ -292,7 +312,7 @@ body.locked #crosshair {
   display: grid;
   gap: 30px;
   justify-items: start;
-  width: min(560px, 90vw);
+  width: min(560px, 100%);
 }
 
 .eyebrow {
@@ -399,17 +419,24 @@ body.locked #crosshair {
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
+  touch-action: manipulation;
   transition:
     background 130ms ease,
     color 130ms ease,
     border-color 130ms ease;
 }
 
-.sail:hover,
 .sail:focus-visible {
   background: transparent;
   color: #fff;
   outline: none;
+}
+
+@media (hover: hover) {
+  .sail:hover {
+    background: transparent;
+    color: #fff;
+  }
 }
 
 .scene {
@@ -438,16 +465,23 @@ body.locked #crosshair {
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
+  touch-action: manipulation;
   transition:
     background 130ms ease,
     color 130ms ease;
 }
 
-.go:hover,
 .go:focus-visible {
   background: transparent;
   color: #fff;
   outline: none;
+}
+
+@media (hover: hover) {
+  .go:hover {
+    background: transparent;
+    color: #fff;
+  }
 }
 
 #chart h2 {
@@ -551,18 +585,26 @@ body.locked #crosshair {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  touch-action: manipulation;
   transition:
     transform 120ms ease,
     border-color 120ms ease,
     background 120ms ease;
 }
 
-.card:hover,
 .card:focus-visible {
   transform: translateY(-4px);
   border-color: rgba(255, 255, 255, 0.7);
   background: rgba(16, 42, 58, 0.95);
   outline: none;
+}
+
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 255, 255, 0.7);
+    background: rgba(16, 42, 58, 0.95);
+  }
 }
 
 .card .family {
@@ -707,4 +749,293 @@ body.locked #crosshair {
 
 #hud .load span {
   white-space: nowrap;
+}
+
+/* ============================================================ narrow screens
+   Nothing here changes the wide layout; the rules below only take over once
+   the window (or the phone) gets small enough that px-sized type and fixed
+   boxes would start to overflow, collide or scroll sideways. */
+
+@media (max-width: 900px) {
+  :root {
+    --panel-pad-y: 30px;
+    --panel-pad-x: 20px;
+    font: 16px/155% var(--sans);
+  }
+
+  /* the hud sits over the left edge of the viewport, never past it */
+  #hud {
+    width: min(260px, calc(100vw - 28px));
+  }
+
+  .prologue h1 {
+    font-size: clamp(40px, 9vw, 54px);
+  }
+
+  .lede p {
+    font-size: 17px;
+  }
+
+  #draft .scene h2 {
+    font-size: clamp(28px, 5vw, 38px);
+    letter-spacing: 0.08em;
+  }
+
+  #draft .scene p,
+  #chart .scene p {
+    font-size: clamp(18px, 2.8vw, 22px);
+  }
+
+  #pause .sheet {
+    padding: 32px clamp(22px, 6vw, 56px);
+  }
+
+  #pause h2 {
+    font-size: 30px;
+  }
+
+  #overlay h1 {
+    font-size: clamp(30px, 7vw, 40px);
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --panel-pad-y: 24px;
+    --panel-pad-x: 16px;
+  }
+
+  /* the hud becomes a bar across the bottom, full width minus the insets */
+  #hud {
+    left: max(10px, env(safe-area-inset-left, 0px));
+    right: max(10px, env(safe-area-inset-right, 0px));
+    bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    width: auto;
+    gap: 6px;
+    padding: 10px 12px;
+    font-size: 11px;
+  }
+
+  #bearings,
+  #build-list {
+    font-size: 11px;
+    line-height: 135%;
+  }
+
+  /* card flavour text is the first thing to go when the panel gets tight */
+  #build-list li .desc {
+    display: none;
+  }
+
+  #hud .load {
+    font-size: 10px;
+    gap: 6px 10px;
+  }
+
+  /* the speed readout moves up out of the hud's way */
+  #readout {
+    top: max(12px, env(safe-area-inset-top, 0px));
+    right: max(14px, env(safe-area-inset-right, 0px));
+    bottom: auto;
+    font-size: 16px;
+  }
+
+  #chart:has(.prologue) {
+    padding-left: max(24px, env(safe-area-inset-left, 0px));
+  }
+
+  .prologue h1 {
+    font-size: clamp(36px, 13vw, 54px);
+  }
+
+  /* the manifest stacks instead of squeezing two columns into one line */
+  .manifest li {
+    display: grid;
+    gap: 2px;
+    padding: 11px 2px;
+  }
+
+  .manifest span {
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .lede p {
+    font-size: 16px;
+    line-height: 168%;
+  }
+
+  #draft .scene h2 {
+    font-size: clamp(24px, 8vw, 34px);
+    letter-spacing: 0.06em;
+  }
+
+  #draft .scene p,
+  #chart .scene p {
+    font-size: 18px;
+    line-height: 160%;
+  }
+
+  .card,
+  #draft .card {
+    padding: 14px 16px;
+  }
+
+  #draft .card .preview {
+    font-size: 15px;
+    padding-left: 10px;
+  }
+
+  #pause .sheet {
+    width: min(100%, 480px);
+    padding: 28px 20px;
+  }
+
+  #pause h2 {
+    font-size: 26px;
+  }
+
+  #overlay h1 {
+    font-size: clamp(28px, 9vw, 40px);
+  }
+
+  #log {
+    font-size: 14px;
+    padding-left: 18px;
+  }
+
+  .keys {
+    font-size: 12px;
+  }
+
+  .keys i {
+    margin: 0 8px;
+  }
+
+  /* one thumb, one column: the buttons go as wide as the panel allows */
+  .sail,
+  .go,
+  #resume {
+    min-width: 0;
+    max-width: 360px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .sail {
+    justify-self: stretch;
+  }
+
+  .go,
+  #resume {
+    width: 100%;
+  }
+}
+
+/* short windows (a phone held sideways): the hud keeps the helm instruments
+   and drops the shopping list, and the panels stop reserving headroom they
+   cannot use */
+@media (max-height: 560px) {
+  :root {
+    --panel-pad-y: 20px;
+  }
+
+  #hud {
+    gap: 5px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  #bearings {
+    padding-top: 6px;
+    font-size: 11px;
+  }
+
+  #build-list {
+    display: none;
+  }
+
+  #hud .load {
+    margin-top: 4px;
+    padding-top: 4px;
+    font-size: 10px;
+  }
+}
+
+/* ============================================================= short viewports
+   The opening page is the tallest thing in the game: on a laptop lid it ran
+   past the bottom of the screen, and before the scroll fix its title sat above
+   the scroll range where nothing could reach it. These two tiers fold the page
+   up as the window gets shorter — gaps tighten, the lede comes down a step,
+   the manifest rows get thinner — so it fits a normal laptop without scrolling
+   and still scrolls cleanly when it cannot. */
+
+@media (max-height: 960px) {
+  :root {
+    --panel-pad-y: 32px;
+  }
+
+  #chart:has(.prologue) {
+    gap: 18px;
+  }
+
+  .prologue {
+    gap: 18px;
+  }
+
+  .prologue h1 {
+    font-size: clamp(38px, 6.5vh, 54px);
+  }
+
+  .lede p {
+    font-size: 17px;
+    line-height: 164%;
+  }
+
+  .manifest li {
+    padding: 8px 2px;
+  }
+}
+
+@media (max-height: 800px) {
+  :root {
+    --panel-pad-y: 22px;
+  }
+
+  #chart:has(.prologue) {
+    gap: 12px;
+  }
+
+  .prologue {
+    gap: 12px;
+  }
+
+  .prologue h1 {
+    font-size: clamp(30px, 6vh, 44px);
+  }
+
+  .lede {
+    gap: 8px;
+  }
+
+  .lede p {
+    font-size: 15px;
+    line-height: 152%;
+  }
+
+  .manifest li {
+    padding: 5px 2px;
+  }
+
+  .manifest b {
+    font-size: 16px;
+  }
+
+  .manifest span {
+    font-size: 12px;
+  }
+
+  .keys {
+    font-size: 12px;
+  }
 }
