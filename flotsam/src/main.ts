@@ -196,6 +196,7 @@ function showIntro() {
     '<li><b>Kitchen Rock</b><span>Smoke, and somebody keeping a fire</span></li>' +
     '<li><b>The Bones</b><span>White rock, and a beach not entirely sand</span></li>' +
     '<li class="last"><b>Homeward</b><span>Salt-white, and far</span></li>' +
+    '</ol>' +
 
     '<p class="keys">' +
     '<b>W</b> sail<i>·</i><b>S</b> back the sail<i>·</i><b>A</b><b>D</b> helm<i>·</i>' +
