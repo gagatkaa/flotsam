@@ -46,6 +46,36 @@ function seaOctave(ux: number, uz: number, choppy: number): number {
 }
 
 /**
+ * The boat's contribution to the surface height, mirroring the `wake()`
+ * function in src/shaders/water/lib.wgsl so the hull rides the same dent it
+ * carves into the visible sea.
+ */
+function wake(x: number, z: number, sx: number, sz: number, dx: number, dz: number, speed: number): number {
+  const toX = x - sx
+  const toZ = z - sz
+
+  const along = toX * dx + toZ * dz
+  const perpX = -dz
+  const perpZ = dx
+  const across = toX * perpX + toZ * perpZ
+  const dist = Math.hypot(toX, toZ)
+
+  const v = Math.max(0, Math.min(1.6, speed / 8))
+
+  const hull = Math.exp(-dist * dist * 0.22)
+
+  const behind = Math.max(-along, 0)
+  const ahead = Math.max(along, 0)
+
+  const trench = -0.4 * v * Math.exp(-behind * 0.16) * Math.exp(-across * across * 0.08)
+  const bow = 0.3 * v * Math.exp(-ahead * 0.2) * Math.exp(-across * across * 0.1)
+  const chevron =
+    0.16 * v * Math.sin(behind * 1.7 - Math.abs(across) * 2.4) * Math.exp(-behind * 0.06) * Math.exp(-Math.abs(across) * 0.22)
+
+  return (trench + bow + chevron) * (1 - hull * 0.85)
+}
+
+/**
  * CPU mirror of the wave height field in src/shaders/water/lib.wgsl.
  * The GPU marches this exact function for the pixels, so the boat and the debris can
  * be placed on the visible surface instead of guessing a flat sea level.
@@ -55,6 +85,13 @@ export class WaveField {
   time = 0
   /** must match the choppy uniform fed to the shader */
   choppy: number = BASE_CHOPPY
+
+  /** the boat's wake, kept in sync with uShipPos / uShipDir / uShipSpeed */
+  shipX = 0
+  shipZ = 0
+  shipDirX = 0
+  shipDirZ = -1
+  shipSpeed = 0
 
   private readonly scratch = new THREE.Vector3()
 
@@ -87,7 +124,7 @@ export class WaveField {
       choppy += (1 - choppy) * 0.2
     }
 
-    return h
+    return h + wake(x, z, this.shipX, this.shipZ, this.shipDirX, this.shipDirZ, this.shipSpeed)
   }
 
   /** surface normal from central differences */

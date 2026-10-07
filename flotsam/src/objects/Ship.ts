@@ -55,6 +55,11 @@ export class Ship {
   yaw = 0
   sinking = false
 
+  /** the world-space direction her bow points, kept up to date by update() */
+  get facing() {
+    return this.forward
+  }
+
   private readonly forward = new THREE.Vector3(0, 0, -1)
   private stats: Stats
   private readonly tints: { material: THREE.MeshStandardNodeMaterial; base: THREE.Color }[] = []

@@ -40,25 +40,6 @@ body {
   display: block;
 }
 
-#crosshair {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 18px;
-  height: 18px;
-  margin: -9px 0 0 -9px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 200ms ease;
-}
-
-body.locked #crosshair {
-  opacity: 1;
-}
-
 #readout {
   position: fixed;
   right: max(18px, env(safe-area-inset-right, 0px));

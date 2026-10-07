@@ -97,7 +97,40 @@ fn sea_octave( uvIn: vec2f, choppy: f32 ) -> f32 {
 
 }
 
-fn map( p: vec3f, seaTime: f32, choppy0: f32 ) -> f32 {
+// the hollow the boat drags behind her and the water she piles ahead, sampled in
+// world space so it rides along with her. Mirrored on the CPU in WaveField.ts.
+fn wake( p: vec3f, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
+
+	let to = p.xz - shipPos;
+	let along = dot( to, shipDir );
+	let perp = vec2f( - shipDir.y, shipDir.x );
+	let across = dot( to, perp );
+	let dist = length( to );
+
+	let v = clamp( shipSpeed / 8.0, 0.0, 1.6 );
+
+	// calm the surface right under the keel so the hull is not buried in its
+	// own wake: 1.0 at the hull, ~0 a few metres out
+	let hull = exp( - dist * dist * 0.22 );
+
+	let behind = max( - along, 0.0 );
+	let ahead = max( along, 0.0 );
+
+	// a rolling trench astern that wakes with speed and dies with distance
+	let trench = - 0.4 * v * exp( - behind * 0.16 ) * exp( - across * across * 0.08 );
+
+	// the bow piles water up ahead of her, a swell that shoves the seas apart
+	let bow = 0.3 * v * exp( - ahead * 0.2 ) * exp( - across * across * 0.1 );
+
+	// chevrons: standing waves shed off the transom and spreading behind
+	let chevron = 0.16 * v * sin( behind * 1.7 - abs( across ) * 2.4 )
+		* exp( - behind * 0.06 ) * exp( - abs( across ) * 0.22 );
+
+	return ( trench + bow + chevron ) * ( 1.0 - hull * 0.85 );
+
+}
+
+fn map( p: vec3f, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 
 	var freq = SEA_FREQ;
 	var amp = SEA_HEIGHT;
@@ -126,11 +159,11 @@ fn map( p: vec3f, seaTime: f32, choppy0: f32 ) -> f32 {
 
 	}
 
-	return p.y - h;
+	return p.y - h - wake( p, shipPos, shipDir, shipSpeed );
 
 }
 
-fn map_detailed( p: vec3f, seaTime: f32, choppy0: f32 ) -> f32 {
+fn map_detailed( p: vec3f, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 
 	var freq = SEA_FREQ;
 	var amp = SEA_HEIGHT;
@@ -159,7 +192,7 @@ fn map_detailed( p: vec3f, seaTime: f32, choppy0: f32 ) -> f32 {
 
 	}
 
-	return p.y - h;
+	return p.y - h - wake( p, shipPos, shipDir, shipSpeed );
 
 }
 
@@ -183,12 +216,12 @@ fn getSeaColor( p: vec3f, n: vec3f, l: vec3f, eye: vec3f, dist: vec3f ) -> vec3f
 }
 
 // tracing
-fn getNormal( p: vec3f, eps: f32, seaTime: f32, choppy0: f32 ) -> vec3f {
+fn getNormal( p: vec3f, eps: f32, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec3f {
 
-	var n: vec3f;
-	n.y = map_detailed( p, seaTime, choppy0 );
-	n.x = map_detailed( vec3f( p.x + eps, p.y, p.z ), seaTime, choppy0 ) - n.y;
-	n.z = map_detailed( vec3f( p.x, p.y, p.z + eps ), seaTime, choppy0 ) - n.y;
+    var n: vec3f;
+    n.y = map_detailed( p, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+    n.x = map_detailed( vec3f( p.x + eps, p.y, p.z ), seaTime, choppy0, shipPos, shipDir, shipSpeed ) - n.y;
+    n.z = map_detailed( vec3f( p.x, p.y, p.z + eps ), seaTime, choppy0, shipPos, shipDir, shipSpeed ) - n.y;
 	n.y = eps;
 
 	return normalize( n );
@@ -196,23 +229,23 @@ fn getNormal( p: vec3f, eps: f32, seaTime: f32, choppy0: f32 ) -> vec3f {
 }
 
 // returns vec4f( distance along ray, hit position )
-fn heightMapTracing( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32 ) -> vec4f {
+fn heightMapTracing( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec4f {
 
-	var tm: f32 = 0.0;
-	var tx: f32 = 1000.0;
+    var tm: f32 = 0.0;
+    var tx: f32 = 1000.0;
 
-	var hx = map( ori + dir * tx, seaTime, choppy0 );
-	if ( hx > 0.0 ) {
-		return vec4f( tx, ori + dir * tx );
-	}
+    var hx = map( ori + dir * tx, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+    if ( hx > 0.0 ) {
+        return vec4f( tx, ori + dir * tx );
+    }
 
-	var hm = map( ori, seaTime, choppy0 );
+    var hm = map( ori, seaTime, choppy0, shipPos, shipDir, shipSpeed );
 
-	for ( var i = 0; i < NUM_STEPS; i ++ ) {
+    for ( var i = 0; i < NUM_STEPS; i ++ ) {
 
-		let tmid = mix( tm, tx, hm / ( hm - hx ) );
-		let p = ori + dir * tmid;
-		let hmid = map( p, seaTime, choppy0 );
+        let tmid = mix( tm, tx, hm / ( hm - hx ) );
+        let p = ori + dir * tmid;
+        let hmid = map( p, seaTime, choppy0, shipPos, shipDir, shipSpeed );
 
 		if ( hmid < 0.0 ) {
 			tx = tmid;
@@ -235,13 +268,13 @@ fn heightMapTracing( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32 ) -> vec
 }
 
 // `dir` replaces the shadertoy's built-in fly camera, `ori` is the real camera position.
-fn getPixel( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, epsScale: f32 ) -> vec3f {
+fn getPixel( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, epsScale: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec3f {
 
-	let hit = heightMapTracing( ori, dir, seaTime, choppy0 );
-	let p = hit.yzw;
-	let dist = p - ori;
+    let hit = heightMapTracing( ori, dir, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+    let p = hit.yzw;
+    let dist = p - ori;
 
-	let n = getNormal( p, dot( dist, dist ) * epsScale, seaTime, choppy0 );
+    let n = getNormal( p, dot( dist, dist ) * epsScale, seaTime, choppy0, shipPos, shipDir, shipSpeed );
 	let l = normalize( vec3f( 0.0, 1.0, 0.8 ) );
 
 	return mix(

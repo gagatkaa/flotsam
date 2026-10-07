@@ -18,6 +18,7 @@ import seascapeEntry from './shaders/water/fragment.wgsl?raw'
 import { BoatControls } from './controls/BoatControls'
 import { Ship } from './objects/Ship'
 import { WaveField } from './objects/WaveField'
+import { Physics } from './physics/Physics'
 import {
   bearingAndRange,
   buildWorld,
@@ -57,10 +58,17 @@ scene.fog = new THREE.FogExp2(0x9fc4dd, 0.0035)
 // ---------------------------------------------------------------- ocean shader
 // "Seascape" by Alexander Alekseev aka TDM - https://www.shadertoy.com/view/Ms2SD1
 // The helpers are emitted at module scope ahead of the entry function.
-const seascape = wgslFn<[THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node]>(seascapeEntry, [wgsl(seascapeHelpers)])
+const seascape = wgslFn<[THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node]>(
+  seascapeEntry,
+  [wgsl(seascapeHelpers)],
+)
 
 const uTime = uniform(0)
 const uChoppy = uniform(4)
+// the boat's own wake: where she is, which way she points, and how fast
+const uShipPos = uniform(new THREE.Vector2(0, 0))
+const uShipDir = uniform(new THREE.Vector2(0, -1))
+const uShipSpeed = uniform(0)
 
 // `wgslFn` is typed as returning an untyped Node, so cast it to a vec3 node
 const seascapeColor = seascape as unknown as (...args: THREE.Node[]) => ReturnType<typeof vec3>
@@ -69,7 +77,7 @@ const rayDir = normalize(positionWorld)
 // three renders scene.backgroundNode on a skybox sphere with its translation
 // stripped, so positionWorld is the world space view ray of this fragment.
 scene.backgroundNode = vec4(
-  seascapeColor(rayDir, cameraPosition, screenSize, uTime, uChoppy),
+  seascapeColor(rayDir, cameraPosition, screenSize, uTime, uChoppy, uShipPos, uShipDir, uShipSpeed),
   1,
 )
 
@@ -123,12 +131,19 @@ scene.add(sun)
 const sky = new THREE.HemisphereLight(0xbfe3ff, 0x1d4a63, 1.1)
 scene.add(sky)
 
+const physics = new Physics()
 let world: World
 
 function loadWorld(seed?: number) {
   world = buildWorld(seed)
-  for (const island of world.islands) scene.add(island.group)
-  for (const hazard of world.hazards) scene.add(hazard.mesh)
+  for (const island of world.islands) {
+    scene.add(island.group)
+    physics.island(island.position.x, island.position.z, island.radius)
+  }
+  for (const hazard of world.hazards) {
+    scene.add(hazard.mesh)
+    physics.rock(hazard.position.x, hazard.position.z, hazard.radius)
+  }
 }
 loadWorld()
 
@@ -702,6 +717,17 @@ function animate() {
   waves.time = elapsed
   waves.choppy = choppy
 
+  // the boat carves her own wake into the raymarched sea
+  const sailSpeed = Math.max(0, ship.speed - 0.5)
+  uShipPos.value = new THREE.Vector2(ship.position.x, ship.position.z)
+  uShipDir.value = new THREE.Vector2(ship.facing.x, ship.facing.z)
+  uShipSpeed.value = sailSpeed
+  waves.shipX = ship.position.x
+  waves.shipZ = ship.position.z
+  waves.shipDirX = ship.facing.x
+  waves.shipDirZ = ship.facing.z
+  waves.shipSpeed = sailSpeed
+
   // no throttle and no steering unless you are actually sailing and holding
   // the tiller. Without the isLocked check, W drives the boat from the pause menu.
   const sailing = run.phase === 'sailing' && controls.isLocked
@@ -720,6 +746,36 @@ function animate() {
     const push = driftForIslands(run.pieces.size)
     ship.position.x += Math.sin(elapsed * 0.21) * push * delta
     ship.position.z += Math.cos(elapsed * 0.17) * push * delta
+  }
+
+  // ---- cannon-es answers what the boat touched this frame. She still sails
+  // by the hand-rolled kinematics; physics just keeps her out of the rocks and
+  // slides her along the shores instead of sailing through them.
+  const hits = physics.step(
+    delta,
+    ship.position.x,
+    ship.position.y,
+    ship.position.z,
+    ship.velocity.x,
+    ship.velocity.z,
+  )
+
+  let grinding = false
+  for (const hit of hits) {
+    // push her along the normal until the solver stops telling us we overlap
+    ship.position.x += hit.nx * 1.6
+    ship.position.z += hit.nz * 1.6
+
+    if (hit.kind !== 'rock') continue
+    grinding = true
+    // grinding wears the hull; hitting her fast adds to it
+    if (sailing) ship.damage((8 + Math.max(0, hit.speed - 1) * 0.8) * delta)
+  }
+
+  if (grinding && !flash.classList.contains('on')) {
+    flash.classList.remove('on')
+    void flash.offsetWidth
+    flash.classList.add('on')
   }
 
   // ---- islands ride the water: heave on the swell, and lean into its slope
@@ -756,30 +812,11 @@ function animate() {
     }
   }
 
-  // ---- rock
-  let grinding = false
+  // ---- rock: cannon-es handles the grinding damage, all that is left here is
+  // to seat each outcrop on the water so it looks like it belongs
   for (const hazard of world.hazards) {
     const y = waves.height(hazard.position.x, hazard.position.z)
     hazard.mesh.position.set(hazard.position.x, y, hazard.position.z)
-
-    const dx = ship.position.x - hazard.position.x
-    const dz = ship.position.z - hazard.position.z
-    const distance = Math.hypot(dx, dz)
-
-    if (distance < hazard.radius + 2) {
-      if (sailing) ship.damage(hazard.damage * delta)
-      grinding = true
-
-      const push = (hazard.radius + 2 - distance) * 6 * delta
-      ship.position.x += (dx / (distance || 1)) * push
-      ship.position.z += (dz / (distance || 1)) * push
-    }
-  }
-
-  if (grinding && !flash.classList.contains('on')) {
-    flash.classList.remove('on')
-    void flash.offsetWidth
-    flash.classList.add('on')
   }
 
   // ---- arrival: no destination was ever chosen, so you simply arrive
@@ -791,14 +828,6 @@ function animate() {
     const dx = ship.position.x - island.position.x
     const dz = ship.position.z - island.position.z
     const distance = Math.hypot(dx, dz)
-
-    // land is land: the hull slides along the shore instead of sailing through it
-    const block = island.radius * 1.12 + 2
-    if (distance < block && distance > 0.0001) {
-      ship.position.x = island.position.x + (dx / distance) * block
-      ship.position.z = island.position.z + (dz / distance) * block
-      ship.speed *= Math.max(0, 1 - 1.4 * delta)
-    }
 
     // forget an island once you are well clear of it, so you can come back
     if (shownOn === island.id && distance > island.radius + LANDING * 6) shownOn = null

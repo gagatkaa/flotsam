@@ -13,14 +13,14 @@
 //  - `iMouse` is dropped: pointer-lock mouse look already drives the camera
 //  - the `#ifdef AA` variant is not ported (it is disabled upstream)
 
-fn seascape( dirIn: vec3f, ori: vec3f, resolution: vec2f, iTime: f32, choppy0: f32 ) -> vec3f {
+fn seascape( dirIn: vec3f, ori: vec3f, resolution: vec2f, iTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec3f {
 
 	let dir = normalize( dirIn );
 
 	let seaTime = 1.0 + iTime * SEA_SPEED;
 	let epsScale = 0.1 / resolution.x;
 
-	let color = getPixel( ori, dir, seaTime, choppy0, epsScale );
+	let color = getPixel( ori, dir, seaTime, choppy0, epsScale, shipPos, shipDir, shipSpeed );
 
 	// post
 	return pow( color, vec3f( 0.65 ) );
