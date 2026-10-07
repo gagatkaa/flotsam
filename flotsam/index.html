@@ -14,25 +14,47 @@
     <div id="crosshair"></div>
 
     <div id="hud">
-      <div class="gauge">
-        <label>hull</label>
-        <div class="track"><span id="hull-fill"></span></div>
-      </div>
-      <div class="row">
-        <span class="stat">chart <b id="pieces">0/6</b></span>
-        <span class="stat" id="wind">adrift</span>
-      </div>
-      <ul id="bearings"></ul>
-      <ul id="build-list"></ul>
-      <div class="load">
-        <span id="load-crew">crew 3</span>
-        <span id="load-pass">rescued 0</span>
-        <span id="load-gold">gold 0</span>
-        <span id="load-food">rations 8</span>
-      </div>
+      <section class="hud-block">
+        <h3>hull</h3>
+        <div class="gauge">
+          <label>health</label>
+          <div class="track"><span id="hull-fill"></span></div>
+        </div>
+      </section>
+      <section class="hud-block">
+        <h3>voyage</h3>
+        <div class="row">
+          <span class="stat">map <b id="pieces">0/6</b></span>
+          <span class="stat" id="wind">no destination</span>
+        </div>
+        <ul id="bearings"></ul>
+      </section>
+      <section class="hud-block" id="rig-block">
+        <h3>rig</h3>
+        <ul id="build-list"></ul>
+      </section>
+      <section class="hud-block">
+        <h3>stores</h3>
+        <div class="load">
+          <span id="load-crew">crew 3</span>
+          <span id="load-pass">rescued 0</span>
+          <span id="load-gold">gold 0</span>
+          <span id="load-food">food 8</span>
+        </div>
+      </section>
     </div>
 
     <div id="readout"></div>
+
+    <button id="land" class="hidden" type="button"><b>E</b> go ashore</button>
+
+    <div id="compass" class="hidden">
+      <div class="lens">
+        <div class="tape" id="compass-tape"></div>
+        <div class="notch"></div>
+      </div>
+      <div class="head"><b id="compass-head">000&deg;</b><span id="compass-word">N</span></div>
+    </div>
 
     <div id="chart" class="hidden"></div>
 
@@ -42,8 +64,8 @@
       <div class="sheet">
         <h2>Paused</h2>
         <p class="keys">
-          <b>W</b> sail<i>·</i><b>S</b> back the sail<i>·</i><b>A</b><b>D</b> helm<i>·</i>
-          <b>Mouse</b> look<i>·</i><b>Esc</b> pause
+          <b>W</b> speed up<i>·</i><b>S</b> slow down<i>·</i><b>A</b><b>D</b> steer<i>·</i>
+          <b>E</b> go ashore<i>·</i><b>Mouse</b> look<i>·</i><b>Esc</b> pause
         </p>
         <button id="resume" type="button">Resume</button>
         <p class="stat" id="pause-stat"></p>

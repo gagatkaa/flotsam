@@ -161,7 +161,9 @@ export function describe(card: Card): string {
     if (key === 'lookahead') continue
 
     const sign = amount >= 0 ? '+' : ''
-    parts.push(`${LABELS[key]} ${sign}${Math.round(amount * 100) / 100}`)
+    // a 0-1 authority score means nothing as "steering at a stop +0.45"
+    const value = key === 'helmFloor' ? `${Math.round(amount * 100)}%` : `${Math.round(amount * 100) / 100}`
+    parts.push(`${LABELS[key]} ${sign}${value}`)
   }
 
   if ((card.add?.lookahead ?? 0) > 0) parts.push(LABELS.lookahead)
@@ -170,14 +172,14 @@ export function describe(card: Card): string {
 }
 
 const LABELS: Record<keyof Stats, string> = {
-  hull: 'hull',
+  hull: 'health',
   speed: 'speed',
-  accel: 'accel',
-  turn: 'turn',
-  waveImpact: 'wave impact',
-  rideHeight: 'freeboard',
-  helmFloor: 'helm',
-  pumps: 'pumps',
+  accel: 'acceleration',
+  turn: 'turning',
+  waveImpact: 'rocking from waves',
+  rideHeight: 'deck height',
+  helmFloor: 'turning at a stop',
+  pumps: 'speed when hurt',
   frailty: 'damage taken',
-  lookahead: 'bearing to every island',
+  lookahead: 'shows every island',
 }

@@ -24,6 +24,12 @@ export interface Island {
   flagged: boolean
   /** the cloth on the pole, kept back so the loop can move it */
   flag: THREE.Object3D | null
+  /**
+   * Where the island is riding this frame, smoothed across frames by the loop.
+   * Heavy land does not snap to the water like a hull does: it heaves and leans
+   * into the swell a beat behind it.
+   */
+  ride: { height: number; pitch: number; roll: number }
 }
 
 export interface World {
@@ -64,31 +70,31 @@ const SPECS: IslandSpec[] = [
   {
     id: 'wreck',
     name: 'The Wreck',
-    note: 'A hull broken on the reef, still above water.',
+    note: 'A ship that went down standing up, and someone is still at the wheel.',
     event: 'wreck',
   },
   {
     id: 'gallows',
     name: 'Gallows Cay',
-    note: 'Someone hung a chart here, and half of it is yours.',
+    note: 'A chart nailed to a gallows on an island with nothing else on it.',
     event: 'gallows',
   },
   {
     id: 'kitchen',
     name: 'Kitchen Rock',
-    note: 'Low, black, and shaped like a stove. Smells of smoke.',
+    note: 'Smoke on the wind. Somebody is keeping a fire, and it smells like dinner.',
     event: 'kitchen',
   },
   {
     id: 'bones',
     name: 'The Bones',
-    note: 'White rock, and a beach that is not entirely sand.',
+    note: 'A shore stacked in rows and arranged on purpose.',
     event: 'bones',
   },
   {
     id: 'homeward',
     name: 'Homeward',
-    note: 'Salt-white and far. You have been avoiding this one.',
+    note: 'Salt-white and far, and the only way out of here.',
     event: 'homeward',
   },
 ]
@@ -253,6 +259,7 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
       group,
       flagged: false,
       flag: null,
+      ride: { height: 0, pitch: 0, roll: 0 },
     })
   })
 
