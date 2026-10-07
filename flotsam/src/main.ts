@@ -648,7 +648,7 @@ resumeEl.addEventListener('click', () => {
 // E — or clicking the prompt — is what puts you ashore. Sailing close to an
 // island only ever offers it.
 window.addEventListener('keydown', (event) => {
-  if (event.code !== 'KeyE') return
+  if (event.code !== 'KeyE' && event.key.toLowerCase() !== 'e') return
   landOn(landingTarget)
 })
 
