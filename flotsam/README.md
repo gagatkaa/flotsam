@@ -20,14 +20,14 @@ You start crewless, with a broken hull and a few rations. Nothing is free: every
 trade — provisions for hands, hands for supplies, unmarked salvage for an unmarked castaway. Guard
 your timber; grind against the rocks too long and the sea takes you.
 
-- **The Wreck** — lash the captain free and he becomes a hand on your deck; go below for the crew's
-  rum and you might not come back whole.
-- **Gallows Cay** — a chart nailed to a gallows, and a rope still swinging. Some charts you take,
-  some you leave.
-- **Kitchen Rock** — trade your meat for two who want passage home, or ask only for water and let
-  their kindness answer.
-- **The Bones** — a shore of ribs in rows, and an oilcloth in the middle: a chart, a castaway, and a
-  price in your hull for taking it.
+- **The Ship That Wouldn't Sink** — a wreck drifting in circles with nobody on deck and a bell
+  ringing below. Follow the sound and a sailor comes up; strip her timber and she may take a hand with her.
+- **The Lighthouse With No Light** — abandoned for twelve years, but the mirror still turns and the
+  door slams behind you. Take the glass, gut the machinery for the helm, or break the locked box.
+- **The Crab Market** — a fishing dock turned into a shouting market. Trade provisions for plating
+  and two who want passage, help catch a giant crab, or shoplift and pay for it.
+- **The Sleeping Giant** — the island is the bones of something enormous, with a shrine in its rib
+  cage. Take the chart and the helm upgrade, cut a rib for your hull, or find the castaway in the skull.
 
 Four islands, four chart pieces. The whole chart is a map home: there is no homeward island to find —
 finish the map and you can sail for port whenever you like.

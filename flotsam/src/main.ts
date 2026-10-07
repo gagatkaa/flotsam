@@ -38,6 +38,18 @@ const canvas = document.createElement('canvas')
 canvas.id = 'webgl'
 document.querySelector<HTMLDivElement>('#app')!.appendChild(canvas)
 
+// ----------------------------------------------------------------------- map
+// One pass top to bottom:
+//   1. renderer + scene          the WebGPURenderer and the skybox it will draw
+//   2. ocean shader             "Seascape" wired in as scene.backgroundNode (lines ~58)
+//   3. the run + ship           the game state machine and the boat that sails it
+//   4. lighting, then the hud   sun, the reading panels, the opening page
+//   5. the loop                 every frame: shader uniforms -> sail -> physics
+//                               -> islands/rocks -> compass -> hud
+// The interesting-to-a-teacher parts are the ocean shader section and the
+// per-frame loop (marked `loop` below); everything else is presentation for the
+// "more than just looking around" part of the assignment.
+
 // the ported shader is raw WGSL, so there is no WebGL2 fallback
 if (!('gpu' in navigator)) {
   document.querySelector<HTMLDivElement>('#overlay')?.classList.remove('hidden')
@@ -212,10 +224,10 @@ function showIntro() {
     'worth to you when you get there.</p>' +
     '</div>' +
     '<ol class="manifest">' +
-    '<li><b>The Wreck</b><span>a captain lashed to his own wheel</span></li>' +
-    '<li><b>Gallows Cay</b><span>a chart nailed to a gallows</span></li>' +
-    '<li><b>Kitchen Rock</b><span>smoke, and somebody home</span></li>' +
-    '<li class="last"><b>The Bones</b><span>a shore stacked on purpose</span></li>' +
+    '<li><b>The Ship That Wouldn\'t Sink</b><span>and the bell keeps ringing below</span></li>' +
+    '<li><b>The Lighthouse With No Light</b><span>the door just slammed behind you</span></li>' +
+    '<li><b>The Crab Market</b><span>loud, and one crab bigger than a cart</span></li>' +
+    '<li class="last"><b>The Sleeping Giant</b><span>white cliffs, if you look twice</span></li>' +
     '</ol>' +
 
     '<p class="keys">' +
@@ -762,9 +774,9 @@ function animate() {
 
   let grinding = false
   for (const hit of hits) {
-    // push her along the normal until the solver stops telling us we overlap
-    ship.position.x += hit.nx * 1.6
-    ship.position.z += hit.nz * 1.6
+    // push her back out of whatever she is biting into, plus a hair of slack
+    ship.position.x += hit.nx * (hit.depth + 0.4)
+    ship.position.z += hit.nz * (hit.depth + 0.4)
 
     if (hit.kind !== 'rock') continue
     grinding = true
