@@ -62,10 +62,16 @@ function wake(x: number, z: number, sx: number, sz: number, dx: number, dz: numb
 
   const v = Math.max(0, Math.min(1.6, speed / 8))
 
-  const hull = Math.exp(-dist * dist * 0.22)
+  const hull = Math.exp(-dist * dist * 0.1)
 
-  const behind = Math.max(-along, 0)
-  const ahead = Math.max(along, 0)
+  // mirror of WGSL smoothstep(0, 0.8, x): ramp the wake in over the bow and out
+  // over the stern so the trench/bow seam at along=0 does not read as a crease
+  const ramp = (v: number) => {
+    const t = Math.max(0, Math.min(1, v / 0.8))
+    return t * t * (3 - 2 * t)
+  }
+  const behind = ramp(-along)
+  const ahead = ramp(along)
 
   const trench = -0.4 * v * Math.exp(-behind * 0.16) * Math.exp(-across * across * 0.08)
   const bow = 0.3 * v * Math.exp(-ahead * 0.2) * Math.exp(-across * across * 0.1)
