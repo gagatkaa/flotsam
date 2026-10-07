@@ -235,10 +235,20 @@ function showIntro() {
     '<li class="last"><b>The Sleeping Giant</b><span>white cliffs, if you look twice</span></li>' +
     '</ol>' +
 
-    '<p class="keys">' +
-    '<b>W</b> speed up<i>·</i><b>S</b> slow down<i>·</i><b>A</b><b>D</b> steer<i>·</i>' +
-    '<b>E</b> go ashore<i>·</i><b>Mouse</b> look<i>·</i><b>Esc</b> release cursor' +
-    '</p>'
+    '<div class="key-groups">' +
+    '<div class="key-group">' +
+    '<h4>movement</h4>' +
+    '<div class="key"><b>W</b> speed up</div>' +
+    '<div class="key"><b>S</b> slow down</div>' +
+    '<div class="key"><b>A</b><b>D</b> steer</div>' +
+    '<div class="key"><b>Mouse</b> look</div>' +
+    '</div>' +
+    '<div class="key-group">' +
+    '<h4>actions</h4>' +
+    '<div class="key"><b>E</b> go ashore</div>' +
+    '<div class="key"><b>Esc</b> release cursor</div>' +
+    '</div>' +
+    '</div>'
 
   chartEl.appendChild(sheet)
 
