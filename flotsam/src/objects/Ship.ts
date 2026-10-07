@@ -1,8 +1,14 @@
 import * as THREE from 'three/webgpu'
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
+import boatUrl from './BoatModel.FBX?url'
 import type { WaveField } from './WaveField'
 import type { Stats } from '../game/stats'
 
 const HULL_LENGTH = 1.6
+/** the FBX is authored in cm; fit her to the length the handling was tuned around */
+const MODEL_LENGTH = 4.2
+/** wood tone multiplied over the model's own material colours */
+const HULL_COLOR = 0x6b4a2f
 const HIT_COLOR = new THREE.Color(0xff5533)
 
 /**
@@ -31,9 +37,9 @@ const HEEL = 0.19
 const REST_HELM = 0.25
 
 /**
- * Low-poly sloop built from primitives, riding the CPU mirror of the shader's
- * wave field. Every handling number comes from the player's Stats, so whatever
- * an island gives you is just a change to that object.
+ * The boat model (BoatModel.FBX) riding the CPU mirror of the shader's wave
+ * field. Every handling number comes from the player's Stats, so whatever an
+ * island gives you is just a change to that object.
  */
 
 export class Ship {
@@ -70,43 +76,45 @@ export class Ship {
   private flashTimer = 0
   private sinkTimer = 0
 
-  constructor(stats: Stats, hullColor = 0x6b4a2f, sailColor = 0xe8e2d2) {
+  constructor(stats: Stats) {
     this.stats = stats
     this.hp = stats.hull
     this.rig.add(this.deck)
     this.deck.add(this.cameraMount)
     this.cameraMount.position.set(0, 1.05, -0.2)
 
-    const wood = this.tint(hullColor, 0.75)
-    const darkWood = this.tint(0x4a3320, 0.85)
-    const cloth = this.tint(sailColor, 0.9)
-    cloth.side = THREE.DoubleSide
+    // handling is live from the first frame; the mesh appears a beat later
+    new FBXLoader().load(boatUrl, (model) => {
+      // she was authored stern-forward, so swing her round to point at -Z
+      model.rotation.y = Math.PI
 
-    // hull: a 4 sided cone laid along -Z, narrow end forward
-    const hullAxis = new THREE.Group()
-    hullAxis.rotation.x = -Math.PI / 2
-    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.95, 4.2, 4, 1, false), wood)
-    hull.rotation.y = Math.PI / 4
-    hull.scale.set(0.8, 1, 0.8)
-    hullAxis.add(hull)
-    this.deck.add(hullAxis)
+      const box = new THREE.Box3().setFromObject(model)
+      const size = box.getSize(new THREE.Vector3())
+      model.scale.setScalar(MODEL_LENGTH / Math.max(size.x, size.z))
 
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.12, 3.4), darkWood)
-    deck.position.y = 0.32
-    this.deck.add(deck)
+      const fitted = new THREE.Box3().setFromObject(model)
+      const centre = fitted.getCenter(new THREE.Vector3())
+      model.position.sub(centre)
 
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 3.2, 6), darkWood)
-    mast.position.set(0, 1.9, 0.1)
-    this.deck.add(mast)
+      const hull = new THREE.Color(HULL_COLOR)
+      model.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return
+        const sources = Array.isArray(child.material) ? child.material : [child.material]
+        const materials = sources.map((source) => {
+          const material = new THREE.MeshStandardNodeMaterial({
+            color: hull.clone().multiply((source as THREE.MeshPhongMaterial).color),
+            roughness: 0.7,
+          })
+          this.tints.push({ material, base: material.color.clone() })
+          return material
+        })
+        child.material = Array.isArray(child.material) ? materials : materials[0]
+      })
 
-    const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 6), darkWood)
-    boom.rotation.z = Math.PI / 2
-    boom.position.set(0, 0.6, 0.1)
-    this.deck.add(boom)
-
-    const sail = new THREE.Mesh(sailGeometry(1.5, 2.9), cloth)
-    sail.position.z = 0.1
-    this.deck.add(sail)
+      this.deck.add(model)
+    }, undefined, (err) => {
+      console.warn('could not load BoatModel.FBX', err)
+    })
   }
 
   get alive() {
@@ -250,28 +258,4 @@ export class Ship {
       }
     }
   }
-
-  private tint(color: number, roughness: number) {
-    const material = new THREE.MeshStandardNodeMaterial({ color, roughness })
-    this.tints.push({ material, base: new THREE.Color(color) })
-    return material
-  }
-}
-
-/** flat triangular sail, in the XY plane, attached to the mast */
-export function sailGeometry(width: number, height: number): THREE.BufferGeometry {
-  const geometry = new THREE.BufferGeometry()
-  const w = width / 2
-
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute([
-    0, 0, 0,
-    w, 0, 0,
-    0, height, 0,
-    0, 0, 0,
-    0, height, 0,
-    -w, 0, 0,
-  ], 3))
-  geometry.computeVertexNormals()
-
-  return geometry
 }
