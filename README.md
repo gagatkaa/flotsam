@@ -1,12 +1,16 @@
 # Flotsam
 
-Interactive WebGPU shader experience: the ocean shader **Seascape by TDM**
-(https://www.shadertoy.com/view/Ms2SD1) ported from GLSL to WGSL and driven by a first-person swim
-camera in three.js `WebGPURenderer`.
+A scavenger voyage across an endless WebGPU ocean: you sail a half-sunk sloop, salvage wreck and
+strange islands for crew and supplies, and assemble the whole chart to find your way home. The sea
+is real water — the raymarched **Seascape shader by TDM**, ported from GLSL to WGSL and rendered by
+three.js `WebGPURenderer` — and your hull rides its waves (and carves its own wake into them).
+
+**Original shader:** https://www.shadertoy.com/view/Ms2SD1
+Her wake is an added wave layer; island and rock collision runs through cannon-es.
 
 Licensed CC BY-NC-SA 3.0 — attribution required, non-commercial use only.
 
-**Live demo:** _add deployment URL_
+**Live demo:** https://gagatkaa.github.io/flotsam/
 
 **Source & setup instructions:** [`flotsam/README.md`](flotsam/README.md) — the Vite + TypeScript app
 lives in [`flotsam/`](flotsam/).

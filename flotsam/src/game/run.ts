@@ -1,7 +1,7 @@
 import { resolve, type Card } from './stats'
-import type { Island } from './world'
+import { CHART_PIECES, type Island } from './world'
 
-export type Phase = 'intro' | 'sailing' | 'telling' | 'ashore' | 'home' | 'dead'
+export type Phase = 'intro' | 'sailing' | 'telling' | 'ashore' | 'charted' | 'home' | 'dead'
 
 export interface Choice {
   /** the line the player clicks */
@@ -53,6 +53,7 @@ export interface RunEvents {
   onAshore(event: IslandEvent, island: Island): void
   onDepart(): void
   onDamage(amount: number): void
+  onCharted(): void
   onHome(log: string[]): void
   onSunk(log: string[]): void
 }
@@ -121,8 +122,8 @@ export class Run {
   }
 
   /**
-   * Arrived at Homeward with the whole chart. Called directly rather than
-   * through resolve(), because Homeward has no choice to make.
+   * Set sail for home with the whole chart in hand. Called directly rather than
+   * through resolve(), because going home has no choice to make.
    */
   reachHome() {
     this.phase = 'home'
@@ -155,6 +156,13 @@ export class Run {
     if (this.crew <= 0 && this.phase !== 'dead') {
       this.phase = 'dead'
       this.events.onSunk(this.log)
+      return
+    }
+
+    // the whole chart in hand means you can go home from where you are
+    if (this.pieces.size >= CHART_PIECES) {
+      this.phase = 'charted'
+      this.events.onCharted()
       return
     }
 

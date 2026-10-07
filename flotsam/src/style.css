@@ -40,25 +40,6 @@ body {
   display: block;
 }
 
-#crosshair {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 18px;
-  height: 18px;
-  margin: -9px 0 0 -9px;
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 50%;
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 200ms ease;
-}
-
-body.locked #crosshair {
-  opacity: 1;
-}
-
 #readout {
   position: fixed;
   right: max(18px, env(safe-area-inset-right, 0px));
@@ -69,6 +50,209 @@ body.locked #crosshair {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   pointer-events: none;
+}
+
+/* the offer to come ashore: it appears when you coast within range of an
+   island, and it does nothing until you press it */
+#land {
+  position: fixed;
+  top: max(16px, env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  background: rgba(6, 20, 30, 0.82);
+  backdrop-filter: blur(6px);
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#land b {
+  padding: 2px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  font-weight: 500;
+  color: #fff;
+}
+
+#land.hidden {
+  display: none;
+}
+
+#land:focus-visible {
+  border-color: #fff;
+  outline: none;
+}
+
+@media (hover: hover) {
+  #land:hover {
+    border-color: #fff;
+    background: rgba(10, 30, 44, 0.92);
+  }
+}
+
+/* the sail compass: a heading-up tape, so an island is "steer until its mark
+   sits under the notch". Without a Navigator's Glass you only get the nearest
+   island on it; the glass fills in the whole set. */
+#compass {
+  position: fixed;
+  top: clamp(58px, 8vh, 78px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: min(390px, calc(100vw - 32px));
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  font-family: var(--mono);
+  pointer-events: none;
+  user-select: none;
+}
+
+#compass.hidden {
+  display: none;
+}
+
+#compass .lens {
+  position: relative;
+  width: 100%;
+  height: 78px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(4, 18, 28, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+}
+
+#compass .tape {
+  position: absolute;
+  inset: 0;
+}
+
+#compass .tick {
+  position: absolute;
+  top: 50px;
+  bottom: 10px;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+#compass .tick.major {
+  top: 45px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+#compass .tick b {
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+#compass .tick.cardinal b {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+}
+
+#compass .notch {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
+}
+
+#compass .island {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+
+#compass .island em {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(4, 18, 28, 0.66);
+}
+
+#compass .island i {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid currentColor;
+}
+
+#compass .island.open {
+  color: #7cc6ff;
+}
+
+#compass .island.spent {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+#compass .island.spent em {
+  text-decoration: line-through;
+}
+
+#compass .island.target {
+  color: #7fd4a1;
+}
+
+#compass .island.target i {
+  animation: blip 1.6s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px rgba(127, 212, 161, 0.8));
+}
+
+#compass .head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+#compass .head b {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+@keyframes blip {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 #hud {
@@ -125,13 +309,36 @@ body.locked #crosshair {
   color: #fff;
 }
 
+#hud .hud-block {
+  display: grid;
+  gap: 7px;
+}
+
+#hud .hud-block + .hud-block {
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+#hud .hud-block h3 {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  text-shadow: none;
+}
+
+#rig-block:has(#build-list:empty) {
+  display: none;
+}
+
 /* the instruments. one bearing without the glass, the whole set with it. */
 #bearings {
   display: grid;
   gap: 3px;
   margin: 0;
-  padding: 8px 0 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 0;
   list-style: none;
   font-size: 13px;
   letter-spacing: 0.02em;
@@ -139,9 +346,6 @@ body.locked #crosshair {
 
 #bearings:empty {
   display: none;
-  border-top: 0;
-  margin: 0;
-  padding: 0;
 }
 
 #bearings li {
@@ -231,9 +435,8 @@ body.locked #crosshair {
 
 #chart:has(.prologue) {
   grid-template-columns: 1fr;
-  justify-items: start;
+  justify-items: center;
   gap: 28px;
-  padding-left: clamp(28px, 9vw, 120px);
 }
 
 #chart.hidden,
@@ -311,7 +514,8 @@ body.locked #crosshair {
 .prologue {
   display: grid;
   gap: 30px;
-  justify-items: start;
+  justify-items: center;
+  text-align: center;
   width: min(560px, 100%);
 }
 
@@ -349,10 +553,12 @@ body.locked #crosshair {
 /* the seven, as a list. a manifest, not a menu. */
 .manifest {
   width: 100%;
+  max-width: 460px;
   margin: 0;
   padding: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   list-style: none;
+  text-align: left;
 }
 
 .manifest li {
@@ -408,7 +614,7 @@ body.locked #crosshair {
 }
 
 .sail {
-  justify-self: start;
+  justify-self: center;
   padding: 15px 40px;
   border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 4px;
@@ -738,9 +944,6 @@ body.locked #crosshair {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.02em;
@@ -805,6 +1008,20 @@ body.locked #crosshair {
     --panel-pad-x: 16px;
   }
 
+  /* the section headers are a desktop nicety; the phone hud stays a bar */
+  #hud .hud-block h3 {
+    display: none;
+  }
+
+  #hud .hud-block + .hud-block {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  #compass {
+    width: min(230px, calc(100vw - 24px));
+  }
+
   /* the hud becomes a bar across the bottom, full width minus the insets */
   #hud {
     left: max(10px, env(safe-area-inset-left, 0px));
@@ -834,14 +1051,14 @@ body.locked #crosshair {
 
   /* the speed readout moves up out of the hud's way */
   #readout {
-    top: max(12px, env(safe-area-inset-top, 0px));
+    top: calc(clamp(58px, 8vh, 78px) + 102px);
     right: max(14px, env(safe-area-inset-right, 0px));
     bottom: auto;
     font-size: 16px;
   }
 
   #chart:has(.prologue) {
-    padding-left: max(24px, env(safe-area-inset-left, 0px));
+    gap: 22px;
   }
 
   .prologue h1 {
@@ -853,6 +1070,10 @@ body.locked #crosshair {
     display: grid;
     gap: 2px;
     padding: 11px 2px;
+  }
+
+  .manifest {
+    max-width: 100%;
   }
 
   .manifest span {
@@ -932,6 +1153,14 @@ body.locked #crosshair {
   }
 }
 
+@media (min-width: 641px) and (max-width: 1100px) {
+  /* the compass centres in the space beside the hud rather than behind it */
+  #compass {
+    left: calc(50% + 118px);
+    width: min(320px, calc(100vw - 360px));
+  }
+}
+
 /* short windows (a phone held sideways): the hud keeps the helm instruments
    and drops the shopping list, and the panels stop reserving headroom they
    cannot use */
@@ -952,6 +1181,10 @@ body.locked #crosshair {
   }
 
   #build-list {
+    display: none;
+  }
+
+  #rig-block {
     display: none;
   }
 

@@ -14,6 +14,8 @@ export interface Island {
   name: string
   /** one line of flavour, shown in the destination list */
   note: string
+  /** the island's own hue, painted on the land itself and on its chart marks */
+  tint: number
   position: THREE.Vector3
   /** you count as landed inside this */
   radius: number
@@ -24,6 +26,12 @@ export interface Island {
   flagged: boolean
   /** the cloth on the pole, kept back so the loop can move it */
   flag: THREE.Object3D | null
+  /**
+   * Where the island is riding this frame, smoothed across frames by the loop.
+   * Heavy land does not snap to the water like a hull does: it heaves and leans
+   * into the swell a beat behind it.
+   */
+  ride: { height: number; pitch: number; roll: number }
 }
 
 export interface World {
@@ -58,59 +66,60 @@ interface IslandSpec {
   name: string
   note: string
   event: string
+  tint: number
 }
 
 const SPECS: IslandSpec[] = [
   {
     id: 'wreck',
     name: 'The Wreck',
-    note: 'A hull broken on the reef, still above water.',
+    note: 'A ship that went down standing up, and someone is still at the wheel.',
     event: 'wreck',
+    tint: 0x8a4a34,
   },
   {
     id: 'gallows',
     name: 'Gallows Cay',
-    note: 'Someone hung a chart here, and half of it is yours.',
+    note: 'A chart nailed to a gallows on an island with nothing else on it.',
     event: 'gallows',
+    tint: 0x6c5b80,
   },
   {
     id: 'kitchen',
     name: 'Kitchen Rock',
-    note: 'Low, black, and shaped like a stove. Smells of smoke.',
+    note: 'Smoke on the wind. Somebody is keeping a fire, and it smells like dinner.',
     event: 'kitchen',
+    tint: 0x9c6429,
   },
   {
     id: 'bones',
     name: 'The Bones',
-    note: 'White rock, and a beach that is not entirely sand.',
+    note: 'A shore stacked in rows and arranged on purpose.',
     event: 'bones',
-  },
-  {
-    id: 'homeward',
-    name: 'Homeward',
-    note: 'Salt-white and far. You have been avoiding this one.',
-    event: 'homeward',
+    tint: 0xc9bc9d,
   },
 ]
 
 /**
- * Every island except Homeward holds a piece of the chart. Derived rather than
- * written down, so changing the archipelago cannot leave the win condition
- * disagreeing with the map.
+ * Every island holds a piece of the chart. Derived rather than written down, so
+ * changing the archipelago cannot leave the win condition disagreeing with the
+ * map.
  */
-export const CHART_PIECES = SPECS.length - 1
+export const CHART_PIECES = SPECS.length
 
 /** a squat stack of cones and cylinders: enough to read as land at 400m */
-function makeIslandBody(random: () => number, radius: number) {
+function makeIslandBody(random: () => number, radius: number, tint: number) {
   const group = new THREE.Group()
 
+  const baseColor = new THREE.Color(tint)
+
   const rock = new THREE.MeshStandardNodeMaterial({
-    color: 0x6b6357,
+    color: baseColor.clone().multiplyScalar(0.9),
     roughness: 0.95,
     flatShading: true,
   })
   const grass = new THREE.MeshStandardNodeMaterial({
-    color: 0x4a5c39,
+    color: baseColor.clone().multiplyScalar(1.15),
     roughness: 0.9,
     flatShading: true,
   })
@@ -240,19 +249,21 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
 
     place.set(x, 0, z)
 
-    const group = makeIslandBody(random, radius)
+    const group = makeIslandBody(random, radius, spec.tint)
     group.name = spec.id
 
     islands.push({
       id: spec.id,
       name: spec.name,
       note: spec.note,
+      tint: spec.tint,
       event: spec.event,
       position: place.clone(),
       radius,
       group,
       flagged: false,
       flag: null,
+      ride: { height: 0, pitch: 0, roll: 0 },
     })
   })
 
