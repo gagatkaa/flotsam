@@ -3,44 +3,65 @@ import type { IslandEvent } from './run'
 
 function byId(id: string) {
   const card = CARDS.find((c) => c.id === id)
-  if (!card) throw new Error(`event references unknown card: ${id}`)
+
+  if (!card) {
+    throw new Error(`event references unknown card: ${ id } `)
+  }
+
   return card
 }
 
 export const EVENTS: Record<string, IslandEvent> = {
   wreck: {
     island: 'wreck',
-    title: 'The Wreck',
+    title: 'The Ship That Wouldn’t Sink',
+
     telling:
-      'You catch her at first light, bow down, stern still fighting for air. She has been dead a long time, but the captain is still at his wheel — he lashed himself to it, so he would go over standing up, and the lashing held.',
+      'You find a ship drifting in circles with no sails, no flag, and nobody on deck. The strange part is that half of it should already be underwater. Somehow, it is still floating.',
+
     adventure:
-      'You come alongside her lee side and climb over the rail. The chart case is still lashed to the cabin table, sealed against the sea. The hold is split open, and the water in it watches you come.',
+      'As you pull closer, someone starts ringing the ship’s bell from below deck. Three slow rings. Then silence. There is valuable timber in the hold, a locked powder room near the stern, and at least one person still alive somewhere inside.',
+
     choices: [
       {
-        text: 'Go below. Risk the flooding hold to strip her timbers.',
+        text: 'Follow the bell.',
+
         preview:
-          'Two of you go down while she still breathes — in with each wave, out with the next. Only one comes back up. Her keel timber is deeper and truer than yours, and you have the chart. It costs you 12 health and a hand.',
-        outcome: 'Went below the wreck, pried out a deep keel. Paid 12 health and a hand.',
-        piece: 'wreck',
-        gain: byId('keel'),
-        damage: 12,
-        crewDelta: -1,
-      },
-      {
-        text: 'Free the captain. Cut him loose and take him aboard.',
-        preview:
-          'You cut the lashing. He is half gone, but he is a sailor, and while you pull him clear he tells you where she kept her powder. It costs you 8 health. You gain a hand, and the chart comes too.',
-        outcome: 'Cut the captain loose, took him aboard, lost 8 health.',
+          'You climb into the flooded lower deck and follow the sound. The water rises quickly. You find a trapped sailor, but getting him out means abandoning most of the salvage.',
+
+        outcome:
+          'You rescue the sailor and find a hidden box of black powder. The escape costs you 8 health, but you gain 1 crew member.',
+
         piece: 'wreck',
         gain: byId('blackpowder'),
         damage: 8,
         crewDelta: 1,
       },
+
       {
-        text: 'Leave her. Take only the chart and what is already loose.',
+        text: 'Forget the sailor. Strip the ship.',
+
         preview:
-          'You take the chart from the wheelhouse door and some rope that stayed dry in its coil. A clean job — no one hurt, nothing owed, and the chart is yours.',
-        outcome: 'Left the wreck alone, took her chart and spare rigging.',
+          'The hull is full of strong timber, better than anything on your own ship. You send the crew down before the wreck finally gives up and sinks.',
+
+        outcome:
+          'You recover a heavy keel beam, but one crew member is trapped when the wreck collapses. You lose 12 health and 1 crew member.',
+
+        piece: 'wreck',
+        gain: byId('keel'),
+        damage: 12,
+        crewDelta: -1,
+      },
+
+      {
+        text: 'Cut loose the rigging and get out.',
+
+        preview:
+          'You decide this ship has already taken enough people. You stay above deck, cut free the best ropes you can find, and leave before the bell rings again.',
+
+        outcome:
+          'You gain spare rigging and leave without taking any damage.',
+
         piece: 'wreck',
         gain: byId('rigging'),
       },
@@ -49,72 +70,106 @@ export const EVENTS: Record<string, IslandEvent> = {
 
   gallows: {
     island: 'gallows',
-    title: 'Gallows Cay',
+    title: 'The Lighthouse With No Light',
+
     telling:
-      'It is low and flat and green, and the only thing standing on it is a post. A chart is nailed to the post. The post is a gallows, and you know it the moment you see it.',
+      'A tall stone lighthouse stands on a tiny island ahead. Its lantern is dark, but every few seconds the giant mirror inside turns by itself.',
+
     adventure:
-      'Four words are scratched into the wood beneath it: they hang for this here. You take the chart down, and half the coastline on it is drawn in a hand you recognize — your own.',
+      'Inside, the place looks abandoned. Plates are still on the table. A coat hangs by the door. At the top of the tower you find a chart, a navigator’s glass, and a locked metal box. Then the lighthouse door slams shut below you.',
+
     choices: [
       {
-        text: 'Take the chart and the spy-glass that came with it.',
+        text: 'Take the glass and leave through the roof.',
+
         preview:
-          'You take the chart down, and the spy-glass hung beside it. From your own deck now you can read the bearing to every island, plain as day.',
-        outcome: "Took the chart and the Navigator's glass off the gallows.",
+          'You climb onto the lantern platform and use the old maintenance ladder to get outside. The navigator’s glass is still in excellent condition.',
+
+        outcome:
+          'You escape with the chart and gain the Navigator’s Glass.',
+
         piece: 'gallows',
         gain: byId('glass'),
       },
+
       {
-        text: 'Leave it. You are not the only lost crew out here.',
+        text: 'Fix the lighthouse mechanism.',
+
         preview:
-          'You leave the chart where it hangs and take the iron from the post instead. Something out here marks that you came — and that you let it be.',
-        outcome: 'Left the chart where it hung, took iron for the helm.',
+          'Instead of leaving, you investigate the machinery. Most of it is useless, but several heavy brass parts are perfect for improving your ship’s steering.',
+
+        outcome:
+          'You salvage parts from the lighthouse and upgrade your helm.',
+
         piece: 'gallows',
         gain: byId('helm'),
       },
+
       {
-        text: 'Take the chart and leave your own name nailed under it.',
+        text: 'Break open the locked box.',
+
         preview:
-          'You nail your name beneath the chart so the next lost crew knows who took it. The powder stashed at the foot of the post comes with you.',
-        outcome: 'Took the chart, left a name, took powder.',
+          'The lock gives after a few hits. Inside is black powder, a half-eaten biscuit, and a logbook. The final entry was written yesterday. The lighthouse has supposedly been empty for twelve years.',
+
+        outcome:
+          'You gain black powder and leave with a very uncomfortable mystery.',
+
         piece: 'gallows',
         gain: byId('blackpowder'),
-        sets: 'named-yourself',
+        sets: 'opened-the-box',
       },
     ],
   },
 
   kitchen: {
     island: 'kitchen',
-    title: 'Kitchen Rock',
+    title: 'The Crab Market',
+
     telling:
-      'Low, black and flat on top, and from a mile off it genuinely looks like a bread oven with something still baking in it. There is smoke from a fire somebody is careful to keep going.',
+      'You hear the shouting before you see the island. A tiny fishing village has turned its dock into a loud, chaotic market. People are selling fish, rope, tools, rum, and one absolutely enormous crab tied to a cart.',
+
     adventure:
-      'You get to the ledge, and a woman stands up out of the scrub with a long hook in her hand. Behind her: a fire pit, a cooking pot, and a dozen people who have clearly decided you are interesting.',
+      'The market master spots your ship and immediately tries to sell you half the island. Somewhere in the noise you notice useful hull plating, a set of working pumps, and several people looking for passage off the island.',
+
     choices: [
       {
-        text: 'Trade with them. Meat for a share of the chart.',
+        text: 'Trade some food.',
+
         preview:
-          'You hand over what meat you have — enough to see them through two nights. In return: a corner of the chart, a length of her hull plating, and two of them who want passage home, already aboard before you can argue.',
-        outcome: 'Traded food for the Kitchen Rock chart and plating. Took two rescued aboard.',
+          'You offer provisions instead of coins. The villagers are hungry enough to accept. They give you strong hull plating, and two locals ask to join your journey.',
+
+        outcome:
+          'You spend 5 provisions, gain hull plating, and take 2 passengers aboard.',
+
         piece: 'kitchen',
         gain: byId('plating'),
         provisionsDelta: -5,
         passengersDelta: 2,
       },
+
       {
-        text: 'Ask for water and nothing else. Give them nothing.',
+        text: 'Help catch the giant crab.',
+
         preview:
-          'You ask for water, nothing more. She gives it anyway — then the pumps from by the fire, then the chart, then a month of smoked fish besides. It is the kindness that makes you uneasy.',
-        outcome: 'Asked for water, took the Kitchen Rock chart, pumps, and food.',
+          'The crab gets loose. Naturally, everyone decides this is now your problem. After a ridiculous chase through the market, you trap it between two barrels.',
+
+        outcome:
+          'The villagers reward you with spare pumps and enough food for several days. You gain 4 provisions.',
+
         piece: 'kitchen',
         gain: byId('pumps'),
         provisionsDelta: 4,
       },
+
       {
-        text: 'Take the pot and go. Leave them the fire.',
+        text: 'Grab supplies during the chaos.',
+
         preview:
-          'Her hook catches you at the ledge going down — 8 health you will not get back. But the fire is what they cared about, and it is still burning when you reach the water, so they let the chart go with you.',
-        outcome: 'Took the pot, paid 8 health for the Kitchen Rock chart.',
+          'While everyone is chasing the crab, you help yourself to a few unattended supplies. Unfortunately, the market master notices before you reach your boat.',
+
+        outcome:
+          'You escape with what you took, but lose 8 health after a very short and very unfair fight.',
+
         piece: 'kitchen',
         damage: 8,
       },
@@ -123,34 +178,51 @@ export const EVENTS: Record<string, IslandEvent> = {
 
   bones: {
     island: 'bones',
-    title: 'The Bones',
+    title: 'The Sleeping Giant',
+
     telling:
-      'The island is white rock, and the beach is not entirely sand. The beach is stacked. It is arranged, row after row, and something out here did it on purpose.',
+      'At first you think the island has strange white cliffs. Then one of them moves. You are not looking at rock. You are looking at the bones of something enormous.',
+
     adventure:
-      'Ribs, big as your boat, in a row up the cliff until they disappear into black rock. Something enormous died here in a ceremony whose shape you can still read. In the centre sits a roll of oilcloth — and a chart.',
+      'The skeleton stretches across almost the entire island. Someone has built a small shrine inside its rib cage. In the centre sits a chart, surrounded by tools, offerings, and the remains of an old camp.',
+
     choices: [
       {
-        text: 'Take the chart and re-lay the bones the way you found them.',
+        text: 'Take the chart carefully.',
+
         preview:
-          'You take the chart, then spend the whole night setting the bones back exactly as you found them. You leave the place tidier than you found it, and the iron from the post makes your helm answer faster.',
-        outcome: 'Took the chart from the Bones, re-laid them, upgraded the helm.',
+          'You enter the rib cage without touching the shrine. Beneath the chart you find an old metal steering part left as an offering.',
+
+        outcome:
+          'You take the chart without disturbing the shrine and gain a helm upgrade.',
+
         piece: 'bones',
         gain: byId('helm'),
       },
+
       {
-        text: 'Take a rib for the boat. The hull is open and you are days out.',
+        text: 'Take one of the giant bones.',
+
         preview:
-          'You cut a rib loose and work it into the split in your hull. It holds — but it costs you 12 health to fit, and the rib feels like it knows it has been taken.',
-        outcome: 'Took a rib from the Bones, patched the hull, took the chart.',
+          'One of the ribs is almost the perfect shape to reinforce your damaged hull. Removing it is hard work, and the entire skeleton shifts while you cut it free.',
+
+        outcome:
+          'You reinforce the ship with a giant rib, but the dangerous work costs you 12 health.',
+
         piece: 'bones',
         gain: byId('tight-fit'),
         damage: 12,
       },
+
       {
-        text: "Take the oilcloth. The bones were somebody's before they were a chart.",
+        text: 'Search the old camp.',
+
         preview:
-          'You lift the roll from the centre of the ring. Something in the cave above objects — out loud, with rocks — and finding out costs you 8 health. Behind the rocks is a man who has lived off this shore for a year, and he asks to come with you. You take him. The chart is yours.',
-        outcome: 'Took the chart from the Bones, paid 8 health, and took a castaway.',
+          'While searching the ruined camp, you hear someone shouting from inside the skull. A castaway has been living there alone and is very happy to see another human being.',
+
+        outcome:
+          'You rescue 1 passenger, but falling debris hits you during the climb. You lose 8 health.',
+
         piece: 'bones',
         damage: 8,
         passengersDelta: 1,
@@ -158,6 +230,7 @@ export const EVENTS: Record<string, IslandEvent> = {
     ],
   },
 }
+
 export function eventFor(id: string): IslandEvent | undefined {
   return EVENTS[id]
 }
