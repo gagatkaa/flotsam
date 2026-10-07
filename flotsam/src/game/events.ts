@@ -19,11 +19,12 @@ export const EVENTS: Record<string, IslandEvent> = {
       {
         text: 'Go below. Risk the flooding hold to strip her timbers.',
         preview:
-          'You go down while she still breathes — in with each wave, out with the next. Her keel timber is deeper and truer than yours, so you work one loose and climb out just ahead of the closing water. It costs you 12 health, and you have the chart.',
-        outcome: 'Went below the wreck, pried out a deep keel, paid 12 health.',
+          'Two of you go down while she still breathes — in with each wave, out with the next. Only one comes back up. Her keel timber is deeper and truer than yours, and you have the chart. It costs you 12 health and a hand.',
+        outcome: 'Went below the wreck, pried out a deep keel. Paid 12 health and a hand.',
         piece: 'wreck',
         gain: byId('keel'),
         damage: 12,
+        crewDelta: -1,
       },
       {
         text: 'Free the captain. Cut him loose and take him aboard.',
@@ -93,18 +94,21 @@ export const EVENTS: Record<string, IslandEvent> = {
       {
         text: 'Trade with them. Meat for a share of the chart.',
         preview:
-          'You hand over what meat you have. She breaks a corner off the chart for you, then throws in a length of her own hull plating. A fair trade, even by your ledger.',
-        outcome: 'Traded meat for the Kitchen Rock chart and plating.',
+          'You hand over what meat you have — enough to see them through two nights. In return: a corner of the chart, a length of her hull plating, and two of them who want passage home, already aboard before you can argue.',
+        outcome: 'Traded food for the Kitchen Rock chart and plating. Took two rescued aboard.',
         piece: 'kitchen',
         gain: byId('plating'),
+        provisionsDelta: -5,
+        passengersDelta: 2,
       },
       {
         text: 'Ask for water and nothing else. Give them nothing.',
         preview:
-          'You ask for water, nothing more. She gives it anyway — then the pumps from by the fire, then the chart. It is the kindness that makes you uneasy.',
-        outcome: 'Asked for water, took the Kitchen Rock chart and pumps.',
+          'You ask for water, nothing more. She gives it anyway — then the pumps from by the fire, then the chart, then a month of smoked fish besides. It is the kindness that makes you uneasy.',
+        outcome: 'Asked for water, took the Kitchen Rock chart, pumps, and food.',
         piece: 'kitchen',
         gain: byId('pumps'),
+        provisionsDelta: 4,
       },
       {
         text: 'Take the pot and go. Leave them the fire.',
@@ -145,10 +149,11 @@ export const EVENTS: Record<string, IslandEvent> = {
       {
         text: "Take the oilcloth. The bones were somebody's before they were a chart.",
         preview:
-          'You lift the roll from the centre of the ring. Something in the cave above objects — out loud, with rocks — and finding out how costs you 8 health. The chart is yours.',
-        outcome: 'Took the chart from the Bones, paid 8 health.',
+          'You lift the roll from the centre of the ring. Something in the cave above objects — out loud, with rocks — and finding out costs you 8 health. Behind the rocks is a man who has lived off this shore for a year, and he asks to come with you. You take him. The chart is yours.',
+        outcome: 'Took the chart from the Bones, paid 8 health, and took a castaway.',
         piece: 'bones',
         damage: 8,
+        passengersDelta: 1,
       },
     ],
   },

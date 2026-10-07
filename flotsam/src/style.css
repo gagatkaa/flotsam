@@ -231,10 +231,6 @@ body.locked #crosshair {
   color: #7cc6ff;
 }
 
-#compass .island.home {
-  color: #ffd27a;
-}
-
 #compass .island.spent {
   color: rgba(255, 255, 255, 0.3);
 }

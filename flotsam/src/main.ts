@@ -94,6 +94,9 @@ const run = new Run({
   onDamage(amount) {
     ship.damage(amount)
   },
+  onCharted() {
+    showCharted()
+  },
   onHome(log) {
     renderBuild()
     showHome(log)
@@ -197,8 +200,7 @@ function showIntro() {
     '<li><b>The Wreck</b><span>a captain lashed to his own wheel</span></li>' +
     '<li><b>Gallows Cay</b><span>a chart nailed to a gallows</span></li>' +
     '<li><b>Kitchen Rock</b><span>smoke, and somebody home</span></li>' +
-    '<li><b>The Bones</b><span>a shore stacked on purpose</span></li>' +
-    '<li class="last"><b>Homeward</b><span>salt-white, and the way out</span></li>' +
+    '<li class="last"><b>The Bones</b><span>a shore stacked on purpose</span></li>' +
     '</ol>' +
 
     '<p class="keys">' +
@@ -279,14 +281,6 @@ function landOn(island: Island | null) {
   shownOn = island.id
   landingTarget = null
 
-  if (island.id === 'homeward') {
-    // you can reach it any time. you can only read it with the whole chart.
-    run.visited.add(island.id)
-    if (run.pieces.size < CHART_PIECES) showNoChart()
-    else run.reachHome()
-    return
-  }
-
   run.visited.add(island.id)
   raiseFlag(island)
 
@@ -341,7 +335,9 @@ function renderBearings() {
     const spent = run.visited.has(island.id)
     html +=
       `<li${spent ? ' class="spent"' : ''}>` +
-      `<span class="name">${island.name}</span>` +
+      `<span class="name"${spent ? '' : ` style="color:${islandTint(island)}"`}>` +
+      island.name +
+      `</span>` +
       `<span class="leg">${bearing}° ${range}m</span>` +
       `</li>`
   }
@@ -354,6 +350,11 @@ const CARDINALS = ['N', 'E', 'S', 'W']
 const HEADING_WORDS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
 
 const compassDir = new THREE.Vector3()
+
+/** the island's hue as a CSS string, for the chart marks that carry it */
+function islandTint(island: Island) {
+  return `#${island.tint.toString(16).padStart(6, '0')}`
+}
 
 function viewHeading(): number {
   camera.getWorldDirection(compassDir)
@@ -397,11 +398,15 @@ function renderCompass() {
     if (Math.abs(rel) > COMPASS_HALF + 5) continue
     const x = Math.round(width / 2 + rel * pxPerDeg)
     const spent = run.visited.has(island.id)
-    const kind = island.id === 'homeward' ? 'home' : spent ? 'spent' : 'open'
+    const kind = spent ? 'spent' : 'open'
     const target = island.id === nearest?.id
+    // open islands read in their own colour; the guiding green of the nearest
+    // unvisited island and the spent dimming are louder, so they win
+    const tinted = kind === 'open' && !target
+    const style = `left:${x}px${tinted ? `;color:${islandTint(island)}` : ''}`
     const rangeText = Math.round(parseFloat(range))
     marks.push(
-      `<span class="island ${kind}${target ? ' target' : ''}" style="left:${x}px">` +
+      `<span class="island ${kind}${target ? ' target' : ''}" style="${style}">` +
         `<em>${island.name} ${rangeText}m</em><i></i></span>`,
     )
   }
@@ -411,7 +416,7 @@ function renderCompass() {
   compassWord.textContent = HEADING_WORDS[Math.round(heading / 45) % 8]
 }
 
-/** the closest island still holding a piece of chart, Homeward included */
+/** the closest island still holding a piece of chart */
 function nearestUnvisited(): Island | null {
   let best: Island | null = null
   let gap = Infinity
@@ -427,33 +432,6 @@ function nearestUnvisited(): Island | null {
     }
   }
   return best
-}
-
-// ---- you can stand on Homeward any time. you can only leave it with all six
-function showNoChart() {
-  draftEl.innerHTML = ''
-  const block = document.createElement('div')
-  block.className = 'scene'
-  const missing = CHART_PIECES - run.pieces.size
-  block.innerHTML =
-    '<h2>Homeward</h2>' +
-    `<p>You hold ${run.pieces.size} of the ${CHART_PIECES} pieces. You could walk every yard of ` +
-    `Homeward's shore and the way in stays shut — it is waiting for the whole chart. ` +
-    `${missing} more to find.</p>`
-  draftEl.appendChild(block)
-
-  const next = document.createElement('button')
-  next.className = 'go'
-  next.textContent = 'back to sea'
-  next.addEventListener('click', () => {
-    // let them come back once they have the rest of it
-    run.visited.delete('homeward')
-    closePanels()
-    lock()
-  })
-  draftEl.appendChild(next)
-
-  openPanel()
 }
 
 // ---- arrival, beat one: what the island is, and what you find ashore
@@ -575,6 +553,26 @@ function showHome(log: string[]) {
   openPanel()
 }
 
+/** the chart is complete: going home is a choice you can make from anywhere */
+function showCharted() {
+  draftEl.innerHTML = ''
+  const block = document.createElement('div')
+  block.className = 'scene'
+  block.innerHTML =
+    '<h2>The Whole Chart</h2>' +
+    `<p>You lay the last of the ${CHART_PIECES} pieces into place and the sea finally ` +
+    'closes up into a map. Every route home is on it now — the way in, the way out, ' +
+    'and the way you came. The crew can smell land.</p>'
+  draftEl.appendChild(block)
+
+  const home = document.createElement('button')
+  home.className = 'go'
+  home.textContent = 'sail home'
+  home.addEventListener('click', () => run.reachHome())
+  draftEl.appendChild(home)
+  openPanel()
+}
+
 function openPanel() {
   hidePause()
   draftEl.classList.remove('hidden')
@@ -659,8 +657,8 @@ function applyModal() {
 }
 
 function showPause() {
-  const visited = run.visited.size - (run.visited.has('homeward') ? 1 : 0)
-  const unvisited = world.islands.filter((i) => i.id !== 'homeward').length - visited
+  const visited = run.visited.size
+  const unvisited = world.islands.length - visited
   pauseStatEl.textContent =
     `${run.pieces.size}/${CHART_PIECES} of the map · ` +
     `${visited} island${visited === 1 ? '' : 's'} walked · ` +
@@ -809,10 +807,9 @@ function animate() {
     if (distance > island.radius + LANDING) continue
     if (shownOn === island.id) continue
 
-    // A spent island cannot be landed on again. Homeward is the exception:
-    // you can sit off it as often as you like, it just will not read.
+    // A spent island cannot be landed on again.
     const spent = run.visited.has(island.id)
-    if (spent && island.id !== 'homeward') continue
+    if (spent) continue
 
     if (distance < offeredGap) {
       offeredGap = distance
