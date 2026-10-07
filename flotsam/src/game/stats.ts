@@ -27,7 +27,7 @@ export interface Stats {
 }
 
 export const BASE_STATS: Stats = {
-  hull: 100,
+  hull: 60,
   speed: 8.5,
   accel: 1,
   turn: 0.85,

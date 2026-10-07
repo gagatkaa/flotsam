@@ -126,9 +126,9 @@ const run = new Run({
     renderBuild()
     showHome(log)
   },
-  onSunk(log) {
+  onSunk() {
     renderBuild()
-    showSunk(log)
+    showSunk()
   },
 })
 
@@ -168,6 +168,7 @@ loadWorld()
 const overlay = document.querySelector<HTMLDivElement>('#overlay')!
 const readouts = document.querySelector<HTMLSpanElement>('#readout')!
 const healthFill = document.querySelector<HTMLSpanElement>('#health-fill')!
+const healthNum = document.querySelector<HTMLSpanElement>('#health-num')!
 const piecesEl = document.querySelector<HTMLSpanElement>('#pieces')!
 const buildEl = document.querySelector<HTMLUListElement>('#build-list')!
 const chartEl = document.querySelector<HTMLDivElement>('#chart')!
@@ -340,6 +341,9 @@ function landOn(island: Island | null) {
 
 /** throttles the bearings list, which does not need 60 rebuilds a second */
 let bearingTimer = 0
+
+/** true on frames the boat is pressing into a rock, so a bump only charges once */
+let grounded = false
 
 /**
  * What the instruments can tell you. Without a Navigator's Glass you get the one
@@ -557,7 +561,7 @@ function take(choice: Choice) {
   run.resolve(choice)
 }
 
-function showSunk(log: string[]) {
+function showSunk() {
   draftEl.innerHTML = ''
   const block = document.createElement('div')
   block.className = 'scene'
@@ -566,8 +570,12 @@ function showSunk(log: string[]) {
     '<p>She goes down with the map still folded on the cabin table. Whatever it ' +
     'was about to show you, it will show nobody now. The sea closes over the boat — ' +
     'and over you.</p>'
+  const retry = document.createElement('button')
+  retry.className = 'go'
+  retry.textContent = 'set sail again'
+  retry.addEventListener('click', () => location.reload())
+  block.appendChild(retry)
   draftEl.appendChild(block)
-  draftEl.appendChild(buildLog(log))
   openPanel()
 }
 
@@ -768,8 +776,9 @@ function animate() {
     sailing && !modal ? controls.rudder : 0,
   )
 
-  // becalmed, the wind sets you down and you can do nothing about it
-  if (!sailing) {
+  // becalmed, the wind sets you down and you can do nothing about it. A wreck
+  // is past all of that: the tide takes her, not the wind.
+  if (!sailing && run.phase !== 'dead') {
     const push = driftForIslands(run.pieces.size)
     ship.position.x += Math.sin(elapsed * 0.21) * push * delta
     ship.position.z += Math.cos(elapsed * 0.17) * push * delta
@@ -787,22 +796,36 @@ function animate() {
     ship.velocity.z,
   )
 
-  let grinding = false
-  for (const hit of hits) {
-    // push her back out of whatever she is biting into, plus a hair of slack
-    ship.position.x += hit.nx * (hit.depth + 0.4)
-    ship.position.z += hit.nz * (hit.depth + 0.4)
+  // once she is gone she is gone: no shoving, no grinding, no damage. The wreck
+  // just lists over and goes under, so the death screen is not a heaving pile
+  // of wreckage still fighting the rocks.
+  if (ship.alive) {
+    let grinding = false
+    let fastestHit = 0
+    for (const hit of hits) {
+      // push her back out of whatever she is biting into, plus a hair of slack
+      ship.position.x += hit.nx * (hit.depth + 0.4)
+      ship.position.z += hit.nz * (hit.depth + 0.4)
 
-    if (hit.kind !== 'rock') continue
-    grinding = true
-    // grinding wears the hull; hitting her fast adds to it
-    if (sailing) ship.damage((8 + Math.max(0, hit.speed - 1) * 0.8) * delta)
-  }
+      if (hit.kind !== 'rock') continue
+      grinding = true
+      if (hit.speed > fastestHit) fastestHit = hit.speed
+    }
 
-  if (grinding && !flash.classList.contains('on')) {
-    flash.classList.remove('on')
-    void flash.offsetWidth
-    flash.classList.add('on')
+    // A bump costs a visible chunk of the hull, charged once per grinding
+    // episode. Calling damage() every frame drip-feeds the readout with a
+    // fraction a human cannot see; one charge per contact is a hit you feel.
+    if (grinding && !grounded) {
+      const clearDeck = pauseEl.classList.contains('hidden') && !panelIsOpen()
+      if (clearDeck) ship.damage(8 + Math.max(0, fastestHit - 1) * 0.8)
+    }
+    grounded = grinding
+
+    if (grinding && !flash.classList.contains('on')) {
+      flash.classList.remove('on')
+      void flash.offsetWidth
+      flash.classList.add('on')
+    }
   }
 
   // ---- islands ride the water: heave on the swell, and lean into its slope
@@ -879,12 +902,13 @@ function animate() {
 
   if (ship.hp <= 0 && run.phase !== 'dead') {
     run.phase = 'dead'
-    showSunk(run.log)
+    showSunk()
   }
 
   // ---- hud
   healthFill.style.width = `${ship.health * 100}%`
   healthFill.style.backgroundColor = ship.health < 0.35 ? '#ff6a4d' : '#7fd4a1'
+  healthNum.textContent = String(Math.round(ship.hp))
   readouts.textContent = `${(ship.speed * 1.2).toFixed(1)} knots`
   piecesEl.textContent = `${run.pieces.size}/${CHART_PIECES}`
 
