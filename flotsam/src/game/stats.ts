@@ -168,7 +168,7 @@ export function describe(card: Card): string {
 
   if ((card.add?.lookahead ?? 0) > 0) parts.push(LABELS.lookahead)
 
-  return parts.join('  ')
+  return parts.join('  ·  ')
 }
 
 const LABELS: Record<keyof Stats, string> = {

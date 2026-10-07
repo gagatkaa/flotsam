@@ -1,16 +1,68 @@
 :root {
-  --ink: #f2f7fa;
-  --shade: rgba(4, 20, 30, 0.55);
+  /* ------------------------------------------------------------ colours */
+  --sea: #061420;
+  --paper: #e9dfc7;
+  --paper-lift: #f2ead6;
+  --charcoal: #2b2417;
+  --ink: #efe7d6;
+  --brass: #d8b25e;
+  --brass-deep: #9a7328;
+  --paper-edge: rgba(43, 36, 23, 0.35);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23p)' opacity='0.05'/%3E%3C/svg%3E");
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --serif: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
 
-  /* the panels read their breathing room from here, so the narrow rules
-     only have to move two numbers */
-  --panel-pad-y: 40px;
-  --panel-pad-x: 24px;
+  /* ------------------------------------------------------------ spacing
+     all padding, gaps and radii breathe with the window size, so no
+     breakpoint ever needs to restate them */
+  --panel-pad-y: clamp(22px, 4vh, 40px);
+  --panel-pad-x: clamp(16px, 3vw, 24px);
+  --sheet-pad-y: clamp(26px, 5vh, 54px);
+  --sheet-pad-x: clamp(20px, 4vw, 58px);
+  --sheet-gap: clamp(16px, 3.2vh, 36px);
+  --stack-gap: clamp(11px, 2.2vh, 20px);
+  --card-pad-y: clamp(15px, 2.6vh, 22px);
+  --card-pad-x: clamp(17px, 2.6vw, 26px);
+  --manifest-pad: clamp(9px, 1.8vh, 15px);
+  --hud-pad-y: clamp(14px, 2.2vh, 20px);
+  --hud-pad-x: clamp(15px, 1.8vw, 22px);
+  --hud-gap: clamp(11px, 1.8vh, 16px);
 
-  font: 17px/150% var(--sans);
+  /* --------------------------------------------------------------- radii */
+  --r-sheet: clamp(8px, 1vw, 14px);
+  --r-card: clamp(10px, 1vw, 16px);
+  --r-panel: clamp(14px, 1.6vw, 22px);
+  --r-pill: 999px;
+
+  /* ------------------------------------------------------------ type scale
+     every text size clamps to the window, so fonts stay readable from a
+     phone to a cinema screen */
+  --fs-title: clamp(32px, 4vw + 2.4vh, 58px);
+  --fs-scene-title: clamp(23px, 2.6vw + 1.2vh, 36px);
+  --fs-story: clamp(17px, 1.3vw + 0.5vh, 22px);
+  --fs-lede: clamp(15px, 1vw + 0.45vh, 18.5px);
+  --fs-keys: clamp(12.5px, 0.7vw + 0.3vh, 14px);
+  --fs-card: clamp(15px, 1vw + 0.3vh, 17px);
+  --fs-strong: clamp(17px, 1.1vw + 0.4vh, 21px);
+  --fs-preview: clamp(14px, 0.9vw + 0.35vh, 16.5px);
+  --fs-mods: clamp(12.5px, 0.75vw + 0.35vh, 14.5px);
+  --fs-log: clamp(14px, 0.9vw + 0.35vh, 16px);
+  --fs-readout: clamp(16px, 1.5vw, 24px);
+  --fs-hud: clamp(13.5px, 0.85vw + 0.45vh, 16px);
+  --fs-hud-label: clamp(11.5px, 0.6vw + 0.35vh, 13.5px);
+  --fs-list: clamp(13.5px, 0.85vw + 0.35vh, 15.5px);
+  --fs-small: clamp(11.5px, 0.6vw + 0.35vh, 13.5px);
+  --fs-label: clamp(12.5px, 0.7vw + 0.35vh, 14.5px);
+  --fs-button: clamp(15.5px, 1vw + 0.4vh, 18px);
+  --fs-tick: clamp(9px, 0.4vw + 0.3vh, 11px);
+  --fs-tick-major: clamp(10.5px, 0.5vw + 0.35vh, 13px);
+  --fs-name: clamp(17px, 1.1vw + 0.4vh, 21px);
+  --fs-note: clamp(13.5px, 0.85vw + 0.35vh, 16px);
+  --fs-chip: clamp(12px, 0.6vw + 0.35vh, 13.5px);
+
+  font: clamp(16px, 1vw + 0.4vh, 17px)/160% var(--serif);
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -21,7 +73,7 @@
 body {
   margin: 0;
   overflow: hidden;
-  background: #0a1a26;
+  background: var(--sea);
   color: var(--ink);
   cursor: crosshair;
 }
@@ -44,16 +96,18 @@ body {
   position: fixed;
   right: max(18px, env(safe-area-inset-right, 0px));
   bottom: max(16px, env(safe-area-inset-bottom, 0px));
-  font-family: var(--mono);
-  font-size: 20px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: var(--fs-readout);
   letter-spacing: 0.02em;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  line-height: 1.2;
+  color: var(--brass);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
 
-/* the offer to come ashore: it appears when you coast within range of an
-   island, and it does nothing until you press it */
+/* the offer to come ashore: appears when you coast within range of an
+   island, and does nothing until you press it */
 #land {
   position: fixed;
   top: max(16px, env(safe-area-inset-top, 0px));
@@ -62,28 +116,29 @@ body {
   z-index: 4;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
+  gap: 9px;
+  padding: 10px 18px;
+  border: 1px solid rgba(216, 178, 94, 0.55);
+  border-radius: var(--r-pill);
   background: rgba(6, 20, 30, 0.82);
   backdrop-filter: blur(6px);
-  font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.85);
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  letter-spacing: 0.02em;
+  color: rgba(239, 231, 214, 0.9);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
   cursor: pointer;
   touch-action: manipulation;
 }
 
 #land b {
-  padding: 2px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 3px;
+  padding: 2px 8px;
+  border: 1px solid rgba(216, 178, 94, 0.7);
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: var(--fs-chip);
   font-weight: 500;
-  color: #fff;
+  color: var(--brass);
 }
 
 #land.hidden {
@@ -91,20 +146,19 @@ body {
 }
 
 #land:focus-visible {
-  border-color: #fff;
+  border-color: var(--brass);
   outline: none;
 }
 
 @media (hover: hover) {
   #land:hover {
-    border-color: #fff;
+    border-color: var(--brass);
     background: rgba(10, 30, 44, 0.92);
   }
 }
 
-/* the sail compass: a heading-up tape, so an island is "steer until its mark
-   sits under the notch". Without a Navigator's Glass you only get the nearest
-   island on it; the glass fills in the whole set. */
+/* the sail compass: a heading-up tape, so an island is "steer until its
+   mark sits under the notch" */
 #compass {
   position: fixed;
   top: clamp(58px, 8vh, 78px);
@@ -113,9 +167,9 @@ body {
   z-index: 4;
   width: min(390px, calc(100vw - 32px));
   display: grid;
-  gap: 6px;
+  gap: 7px;
   justify-items: center;
-  font-family: var(--mono);
+  font-family: var(--sans);
   pointer-events: none;
   user-select: none;
 }
@@ -127,11 +181,11 @@ body {
 #compass .lens {
   position: relative;
   width: 100%;
-  height: 78px;
+  height: clamp(66px, 9vh, 82px);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 10px;
-  background: rgba(4, 18, 28, 0.62);
+  border: 1px solid rgba(216, 178, 94, 0.3);
+  border-radius: 14px;
+  background: rgba(4, 18, 28, 0.66);
   backdrop-filter: blur(6px);
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
@@ -147,12 +201,12 @@ body {
   top: 50px;
   bottom: 10px;
   width: 1px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(239, 231, 214, 0.18);
 }
 
 #compass .tick.major {
   top: 45px;
-  background: rgba(255, 255, 255, 0.34);
+  background: rgba(239, 231, 214, 0.42);
 }
 
 #compass .tick b {
@@ -160,15 +214,15 @@ body {
   left: 50%;
   bottom: 1px;
   transform: translateX(-50%);
-  font-size: 9px;
+  font-size: var(--fs-tick);
   font-weight: 500;
   letter-spacing: 0.05em;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(239, 231, 214, 0.55);
 }
 
 #compass .tick.cardinal b {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 11px;
+  color: rgba(239, 231, 214, 0.95);
+  font-size: var(--fs-tick-major);
 }
 
 #compass .notch {
@@ -177,8 +231,8 @@ body {
   bottom: 0;
   left: 50%;
   width: 1px;
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
+  background: var(--brass);
+  box-shadow: 0 0 7px rgba(216, 178, 94, 0.65);
 }
 
 #compass .island {
@@ -192,11 +246,11 @@ body {
 
 #compass .island em {
   font-style: normal;
-  font-size: 9px;
-  letter-spacing: 0.05em;
+  font-size: var(--fs-tick);
+  letter-spacing: 0.04em;
   white-space: nowrap;
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
   background: rgba(4, 18, 28, 0.66);
 }
 
@@ -232,15 +286,14 @@ body {
 #compass .head {
   display: flex;
   align-items: baseline;
-  gap: 7px;
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  gap: 8px;
+  font-size: var(--fs-hud-label);
+  letter-spacing: 0.08em;
   color: rgba(255, 255, 255, 0.45);
 }
 
 #compass .head b {
-  font-size: 13px;
+  font-size: var(--fs-label);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.85);
 }
@@ -255,93 +308,97 @@ body {
   }
 }
 
+/* ------------------------------------------------------------------ the hud */
 #hud {
   position: fixed;
   left: max(14px, env(safe-area-inset-left, 0px));
   bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  z-index: 3;
   display: grid;
-  gap: 9px;
-  width: 260px;
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 6px;
-  background: rgba(6, 20, 30, 0.72);
-  backdrop-filter: blur(6px);
-  font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.72);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  gap: var(--hud-gap);
+  width: clamp(240px, 22vw, 296px);
+  max-width: calc(100vw - 28px);
+  padding: var(--hud-pad-y) var(--hud-pad-x);
+  border: 1px solid rgba(239, 231, 214, 0.14);
+  border-radius: var(--r-panel);
+  background: linear-gradient(165deg, rgba(10, 28, 42, 0.84), rgba(5, 15, 24, 0.8));
+  backdrop-filter: blur(10px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+  font-family: var(--sans);
+  font-size: var(--fs-hud);
+  line-height: 1.5;
+  color: rgba(239, 231, 214, 0.85);
   pointer-events: none;
+}
+
+#hud .hud-block {
+  display: grid;
+  gap: clamp(7px, 1.1vh, 10px);
+}
+
+#hud .hud-block + .hud-block {
+  padding-top: var(--hud-gap);
+  border-top: 1px solid rgba(239, 231, 214, 0.12);
+}
+
+#hud .hud-block h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: var(--fs-hud-label);
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: rgba(216, 178, 94, 0.88);
 }
 
 #hud .gauge {
   display: grid;
-  grid-template-columns: 44px 1fr;
+  grid-template-columns: auto 1fr;
   align-items: center;
-  gap: 8px;
+  gap: clamp(8px, 1vw, 12px);
+  font-size: var(--fs-hud-label);
+  color: rgba(239, 231, 214, 0.65);
 }
 
 #hud .track {
-  height: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 2px;
+  height: clamp(9px, 1.2vh, 12px);
+  border: 1px solid rgba(239, 231, 214, 0.18);
+  border-radius: var(--r-pill);
   overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
 }
 
 #hud .track span {
   display: block;
   height: 100%;
   width: 100%;
-  background: #7fd4a1;
-  box-shadow: 0 0 8px rgba(127, 212, 161, 0.5);
+  background-color: #7fd4a1;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.18);
   transition: width 120ms linear;
 }
 
 #hud .row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 10px;
+  gap: 4px 12px;
+  font-size: var(--fs-hud-label);
+  color: rgba(239, 231, 214, 0.6);
 }
 
 #hud .stat b {
   color: #fff;
-}
-
-#hud .hud-block {
-  display: grid;
-  gap: 7px;
-}
-
-#hud .hud-block + .hud-block {
-  padding-top: 9px;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-#hud .hud-block h3 {
-  margin: 0;
-  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
-  text-shadow: none;
 }
 
-#rig-block:has(#build-list:empty) {
-  display: none;
-}
-
-/* the instruments. one bearing without the glass, the whole set with it. */
+/* the destinations: one bearing without the spyglass, the whole set with it */
 #bearings {
   display: grid;
-  gap: 3px;
+  gap: clamp(5px, 0.9vh, 8px);
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
-  letter-spacing: 0.02em;
+  font-size: var(--fs-list);
 }
 
 #bearings:empty {
@@ -351,7 +408,8 @@ body {
 #bearings li {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 8px;
+  align-items: baseline;
+  gap: 10px;
   color: #7cc6ff;
 }
 
@@ -359,20 +417,19 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-transform: none;
-  letter-spacing: 0.01em;
 }
 
 #bearings .leg {
-  font-family: var(--mono);
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
   text-align: right;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.55);
 }
 
-/* spent: the island still shows, but it is no longer somewhere to go */
+/* visited: the island still shows, but it is no longer somewhere to go */
 #bearings li.spent .name,
 #bearings li.spent .leg {
-  color: rgba(255, 255, 255, 0.28);
+  color: rgba(255, 255, 255, 0.3);
 }
 
 #bearings li.spent .name::after {
@@ -382,30 +439,56 @@ body {
 
 #build-list {
   display: grid;
-  gap: 4px;
+  gap: clamp(8px, 1.2vh, 11px);
   margin: 0;
   padding: 0;
   list-style: none;
-  text-transform: none;
-  letter-spacing: 0.01em;
-  font-size: 13px;
-  line-height: 140%;
+  font-size: var(--fs-list);
+  line-height: 1.45;
 }
 
 #build-list li {
   display: grid;
-  grid-template-columns: 1fr;
-}
-
-#build-list li span {
-  color: rgba(255, 255, 255, 0.55);
+  gap: 3px;
 }
 
 #build-list li b {
   color: #ffd27a;
-  margin-right: 4px;
+  font-weight: 600;
 }
 
+#build-list .effect {
+  font-size: var(--fs-small);
+  letter-spacing: 0.02em;
+  color: rgba(127, 212, 161, 0.85);
+}
+
+#build-list li .desc {
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+#hud .load {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  font-size: var(--fs-hud-label);
+}
+
+#hud .load span {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+}
+
+#upgrades-block:has(#build-list:empty) {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ panels */
 #chart,
 #draft,
 #pause {
@@ -414,11 +497,9 @@ body {
   z-index: 5;
   display: grid;
   place-content: center;
-  /* centre when there is room, start when the page is taller than the screen,
-     otherwise the top of a long panel sits outside the scroll range */
   align-content: safe center;
   justify-items: center;
-  gap: 16px;
+  gap: var(--stack-gap);
   overflow-y: auto;
   padding:
     max(var(--panel-pad-y), env(safe-area-inset-top, 0px))
@@ -436,7 +517,7 @@ body {
 #chart:has(.prologue) {
   grid-template-columns: 1fr;
   justify-items: center;
-  gap: 28px;
+  gap: var(--sheet-gap);
 }
 
 #chart.hidden,
@@ -445,7 +526,17 @@ body {
   display: none;
 }
 
-/* ---- pause ---- */
+#chart h2 {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  font-size: var(--fs-label);
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.65);
+  text-align: center;
+}
+
+/* ------------------------------------------------------------------ pause */
 #pause {
   z-index: 7;
   background: rgba(3, 12, 20, 0.72);
@@ -454,143 +545,182 @@ body {
 
 #pause .sheet {
   box-sizing: border-box;
+  position: relative;
   display: grid;
   justify-items: center;
-  gap: 22px;
-  padding: 40px 56px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 8px;
-  background: rgba(6, 20, 30, 0.92);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  gap: var(--sheet-gap);
+  padding: var(--sheet-pad-y) var(--sheet-pad-x);
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--r-sheet);
+  background-color: var(--paper);
+  background-image: var(--grain);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  color: var(--charcoal);
   text-align: center;
+  animation: rise 220ms ease-out;
+}
+
+#pause .sheet::before,
+#draft .scene::before,
+.prologue::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border: 1px solid rgba(185, 143, 54, 0.55);
+  border-radius: calc(var(--r-sheet) - 6px);
+  pointer-events: none;
 }
 
 #pause h2 {
   margin: 0;
-  font-size: 34px;
-  font-weight: 300;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-family: var(--serif);
+  font-size: var(--fs-scene-title);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+  color: var(--charcoal);
+}
+
+#pause h2::after {
+  content: '';
+  display: block;
+  width: 46px;
+  height: 2px;
+  margin: 12px auto 0;
+  border-radius: 2px;
+  background: rgba(154, 115, 40, 0.5);
 }
 
 #pause .stat {
   margin: 0;
-  font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  color: rgba(43, 36, 23, 0.6);
 }
 
-#resume {
-  padding: 14px 44px;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 5px;
-  background: #fff;
-  color: #06161f;
-  font: inherit;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition:
-    background 130ms ease,
-    color 130ms ease;
-}
-
-#resume:focus-visible {
-  background: transparent;
-  color: #fff;
-  outline: none;
-}
-
-@media (hover: hover) {
-  #resume:hover {
-    background: transparent;
-    color: #fff;
-  }
-}
-
-/* ---- the opening page ---- */
+/* ------------------------------------------------------- the opening page */
 .prologue {
+  position: relative;
   display: grid;
-  gap: 30px;
+  gap: var(--sheet-gap);
   justify-items: center;
   text-align: center;
-  width: min(560px, 100%);
+  width: min(600px, 100%);
+  padding: var(--sheet-pad-y) var(--sheet-pad-x);
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--r-sheet);
+  background-color: var(--paper);
+  background-image: var(--grain);
+  box-shadow: 0 26px 64px rgba(0, 0, 0, 0.55);
+  color: var(--charcoal);
+  animation: rise 240ms ease-out;
 }
 
 .eyebrow {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-label);
   font-weight: 500;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.42);
+  color: rgba(43, 36, 23, 0.55);
+}
+
+.eyebrow::before,
+.eyebrow::after {
+  content: '';
+  display: inline-block;
+  width: 30px;
+  height: 1px;
+  margin: 0 14px 4px;
+  background: rgba(154, 115, 40, 0.7);
 }
 
 .prologue h1 {
   margin: -14px 0 0;
-  font-size: 54px;
+  font-size: var(--fs-title);
   font-weight: 300;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.04em;
   line-height: 1;
-  color: #fff;
+  text-wrap: balance;
+  color: var(--charcoal);
 }
 
 .lede {
   display: grid;
-  gap: 14px;
+  gap: var(--stack-gap);
   max-width: 54ch;
 }
 
 .lede p {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-lede);
   line-height: 172%;
-  color: rgba(255, 255, 255, 0.74);
+  text-wrap: pretty;
+  color: rgba(43, 36, 23, 0.82);
 }
 
-/* the seven, as a list. a manifest, not a menu. */
+/* the islands, as a list with leaders like a table of contents */
 .manifest {
   width: 100%;
   max-width: 460px;
   margin: 0;
   padding: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(43, 36, 23, 0.28);
   list-style: none;
   text-align: left;
 }
 
 .manifest li {
+  position: relative;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 20px;
-  padding: 13px 2px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding: var(--manifest-pad) 2px;
+}
+
+.manifest li::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--manifest-pad) + 5px);
+  height: 1px;
+  background: repeating-linear-gradient(90deg, rgba(43, 36, 23, 0.4) 0 2px, transparent 2px 7px);
 }
 
 .manifest b {
-  font-size: 18px;
+  position: relative;
+  font-size: var(--fs-name);
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.3;
+  color: rgba(43, 36, 23, 0.92);
 }
 
 .manifest span {
-  font-size: 14px;
+  position: relative;
+  font-size: var(--fs-note);
+  line-height: 1.4;
   text-align: right;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(43, 36, 23, 0.55);
+}
+
+.manifest b,
+.manifest span {
+  z-index: 1;
+  background: var(--paper);
+  box-shadow: 0 0 0 4px var(--paper);
 }
 
 .manifest .last b {
-  color: #ffd27a;
+  color: var(--brass-deep);
 }
 
 .keys {
   margin: 0;
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.4);
+  font-size: var(--fs-keys);
+  line-height: 1.7;
+  color: rgba(43, 36, 23, 0.6);
 }
 
 .keys b {
@@ -598,13 +728,14 @@ body {
   min-width: 24px;
   margin-right: 6px;
   padding: 3px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 4px;
+  border: 1px solid rgba(43, 36, 23, 0.4);
+  border-radius: 6px;
+  background: rgba(43, 36, 23, 0.06);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-chip);
   font-weight: 500;
   text-align: center;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(43, 36, 23, 0.85);
 }
 
 .keys i {
@@ -613,98 +744,71 @@ body {
   opacity: 0.35;
 }
 
-.sail {
-  justify-self: center;
-  padding: 15px 40px;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 4px;
-  background: #fff;
-  color: #06161f;
-  font: inherit;
-  font-size: 16px;
+/* ---------------------------------------------------------------- buttons */
+.sail,
+.go,
+#resume {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(13px, 1.9vh, 17px) clamp(30px, 4.5vw, 52px);
+  border: 1px solid rgba(43, 36, 23, 0.55);
+  border-radius: var(--r-pill);
+  background: var(--brass);
+  color: #1e180c;
+  font-family: var(--sans);
+  font-size: var(--fs-button);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   cursor: pointer;
   touch-action: manipulation;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
   transition:
     background 130ms ease,
     color 130ms ease,
-    border-color 130ms ease;
+    border-color 130ms ease,
+    transform 90ms ease;
 }
 
-.sail:focus-visible {
-  background: transparent;
-  color: #fff;
+.sail:active,
+.go:active,
+#resume:active {
+  transform: scale(0.98);
+}
+
+.sail:focus-visible,
+.go:focus-visible,
+#resume:focus-visible {
+  background: #1e180c;
+  border-color: var(--brass);
+  color: var(--brass);
   outline: none;
 }
 
 @media (hover: hover) {
-  .sail:hover {
-    background: transparent;
-    color: #fff;
+  .sail:hover,
+  .go:hover,
+  #resume:hover {
+    background: #1e180c;
+    border-color: var(--brass);
+    color: var(--brass);
   }
 }
 
-.scene {
-  gap: 16px;
-  max-width: none;
-}
-
-
-#chart .scene {
-  margin-bottom: 18px;
-}
-
-#draft .scene {
-  gap: 10px;
+.sail {
+  justify-self: center;
 }
 
 .go {
   width: auto;
   min-width: 220px;
-  padding: 14px 30px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: 5px;
-  background: #fff;
-  color: #06161f;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition:
-    background 130ms ease,
-    color 130ms ease;
 }
 
-.go:focus-visible {
-  background: transparent;
-  color: #fff;
-  outline: none;
-}
-
-@media (hover: hover) {
-  .go:hover {
-    background: transparent;
-    color: #fff;
-  }
-}
-
-#chart h2 {
-  grid-column: 1 / -1;
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 300;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.65);
-  text-align: center;
-}
-
+/* ------------------------------------------------------ the story panels */
 #draft {
   grid-auto-flow: row;
   justify-items: stretch;
-  max-width: 840px;
+  max-width: 860px;
   margin: 0 auto;
 }
 
@@ -717,77 +821,125 @@ body {
   justify-self: center;
 }
 
+/* one page of the log, laid over the water */
+#draft .scene {
+  position: relative;
+  display: grid;
+  gap: var(--stack-gap);
+  justify-items: center;
+  padding: var(--sheet-pad-y) var(--sheet-pad-x);
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--r-sheet);
+  background-color: var(--paper);
+  background-image: var(--grain);
+  box-shadow: 0 22px 55px rgba(0, 0, 0, 0.5);
+  color: var(--charcoal);
+  animation: rise 220ms ease-out;
+}
+
 #draft .scene h2 {
-  margin: 0 0 14px;
-  font-size: 38px;
-  font-weight: 300;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  margin: 0 0 2px;
+  font-family: var(--serif);
+  font-size: var(--fs-scene-title);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
   text-align: center;
+  color: var(--charcoal);
+}
+
+#draft .scene h2::after {
+  content: '';
+  display: block;
+  width: 46px;
+  height: 2px;
+  margin: 12px auto 0;
+  border-radius: 2px;
+  background: rgba(154, 115, 40, 0.5);
 }
 
 /* the story line is the thing being read, so it gets the size */
 #draft .scene p,
 #chart .scene p {
   margin: 0;
-  max-width: 54ch;
-  font-size: 22px;
-  line-height: 165%;
-  color: rgba(255, 255, 255, 0.92);
-  text-align: center;
+  max-width: 56ch;
+  font-size: var(--fs-story);
+  line-height: 172%;
+  text-wrap: pretty;
+  text-align: left;
+  color: rgba(43, 36, 23, 0.88);
+}
+
+/* a drop initial, the way a chapter would open */
+#draft .scene p:first-of-type::first-letter {
+  float: left;
+  font-size: 3.1em;
+  line-height: 0.8;
+  padding: 0.06em 0.09em 0 0;
+  color: var(--brass-deep);
 }
 
 #draft .choices {
   display: grid;
-  gap: 8px;
+  gap: clamp(9px, 1.6vh, 14px);
   width: 100%;
-  margin-top: 8px;
 }
 
 #draft .card {
   width: auto;
-  padding: 18px 22px;
 }
 
-#draft .card strong {
-  font-size: 19px;
-}
-
-/* the promise: what this choice hands over or costs, before you commit */
+/* the choices: what each one does, and what it costs, before you commit */
 #draft .card .preview {
-  padding-left: 12px;
-  border-left: 2px solid rgba(255, 255, 255, 0.22);
-  font-size: 16px;
-  line-height: 160%;
+  padding-left: 14px;
+  border-left: 2px solid rgba(154, 115, 40, 0.65);
+  font-size: var(--fs-preview);
+  line-height: 165%;
+  text-wrap: pretty;
   font-style: italic;
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(43, 36, 23, 0.72);
 }
 
 #draft .card .mods {
-  font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--sans);
+  font-size: var(--fs-mods);
+  line-height: 1.5;
+  color: rgba(43, 36, 23, 0.6);
 }
 
+/* -------------------------------------------------------------------- log */
 #log {
   max-width: 60ch;
   margin: 6px 0 0;
-  padding-left: 22px;
-  font-size: 15px;
+  padding: var(--stack-gap) var(--sheet-pad-x) var(--stack-gap) calc(var(--sheet-pad-x) + 14px);
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--r-sheet);
+  background-color: var(--paper);
+  background-image: var(--grain);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  font-size: var(--fs-log);
   line-height: 175%;
-  color: rgba(255, 255, 255, 0.68);
+  text-align: left;
+  color: rgba(43, 36, 23, 0.75);
+  animation: rise 240ms ease-out;
 }
 
+#log li::marker {
+  color: var(--brass-deep);
+}
+
+/* ------------------------------------------------------------------ cards */
 .card {
   display: grid;
-  gap: 10px;
+  gap: clamp(8px, 1.3vh, 13px);
   width: 100%;
-  padding: 16px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
-  background: rgba(8, 24, 34, 0.92);
-  color: var(--ink);
+  padding: var(--card-pad-y) var(--card-pad-x);
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--r-card);
+  background-color: var(--paper-lift);
+  background-image: var(--grain);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+  color: var(--charcoal);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -795,69 +947,58 @@ body {
   transition:
     transform 120ms ease,
     border-color 120ms ease,
-    background 120ms ease;
+    box-shadow 120ms ease;
 }
 
 .card:focus-visible {
   transform: translateY(-4px);
-  border-color: rgba(255, 255, 255, 0.7);
-  background: rgba(16, 42, 58, 0.95);
+  border-color: rgba(43, 36, 23, 0.7);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
   outline: none;
 }
 
 @media (hover: hover) {
   .card:hover {
     transform: translateY(-4px);
-    border-color: rgba(255, 255, 255, 0.7);
-    background: rgba(16, 42, 58, 0.95);
+    border-color: rgba(43, 36, 23, 0.7);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
   }
 }
 
-.card .family {
-  justify-self: start;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: #04141d;
-}
-
-.card .family.hull {
-  background: #7fd4a1;
-}
-
-.card .family.sail {
-  background: #ffd27a;
-}
-
-.card .family.utility {
-  background: #7cc6ff;
-}
-
-.card .family.risky {
-  background: #ff7a5c;
-}
-
-.card strong {
-  font-size: 17px;
-  font-weight: 600;
-}
-
 .card .text {
-  font-size: 16px;
-  line-height: 145%;
-  color: rgba(255, 255, 255, 0.92);
+  font-family: var(--serif);
+  font-size: var(--fs-strong);
+  font-weight: 500;
+  line-height: 1.35;
+  text-wrap: pretty;
+  color: rgba(43, 36, 23, 0.92);
 }
 
 .card .mods {
-  font-family: var(--mono);
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.62);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
 }
 
+.card .mods .gain,
+.card .mods .cost {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-mods);
+  font-weight: 500;
+}
+
+.card .mods .gain {
+  background: rgba(76, 178, 116, 0.22);
+  color: #1c5c38;
+}
+
+.card .mods .cost {
+  background: rgba(224, 109, 78, 0.16);
+  color: #8c2f1c;
+}
+
+/* ------------------------------------------------------------------ damage */
 #damage {
   position: fixed;
   inset: 0;
@@ -879,6 +1020,39 @@ body {
   }
 }
 
+/* every sheet and slip settles onto the screen; exits stay instant */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.choices .card {
+  animation: rise 200ms ease-out backwards;
+}
+
+.choices .card:nth-child(2) {
+  animation-delay: 40ms;
+}
+.choices .card:nth-child(3) {
+  animation-delay: 80ms;
+}
+.choices .card:nth-child(4) {
+  animation-delay: 120ms;
+}
+.choices .card:nth-child(5) {
+  animation-delay: 160ms;
+}
+.choices .card:nth-child(6) {
+  animation-delay: 200ms;
+}
+
+/* ---------------------------------------------------------------- overlay */
 #overlay {
   position: fixed;
   inset: 0;
@@ -887,9 +1061,9 @@ body {
   place-content: center;
   justify-items: center;
   gap: 10px;
-  padding: 40px 24px;
+  padding: var(--panel-pad-y) var(--panel-pad-x);
   text-align: center;
-  background: #0a1a26;
+  background: var(--sea);
   transition: opacity 200ms ease;
 }
 
@@ -900,26 +1074,27 @@ body {
 
 #overlay h1 {
   margin: 0 0 10px;
-  font-size: 40px;
+  font-size: clamp(26px, 4vw, 40px);
   font-weight: 300;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.14em;
+  color: var(--paper);
 }
 
 #overlay .cta {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-lede);
   color: rgba(255, 255, 255, 0.85);
 }
 
 #overlay .sub {
   margin: 0 0 26px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: rgba(255, 255, 255, 0.55);
 }
 
 #overlay .credit {
   margin: 24px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-small);
   color: rgba(255, 255, 255, 0.4);
 }
 
@@ -927,88 +1102,11 @@ body {
   color: rgba(255, 255, 255, 0.7);
 }
 
-
-
-/* card descriptions in the build list */
-#build-list li .desc {
-  display: block;
-  margin-top: 2px;
-  padding-left: 26px;
-  font-size: 11px;
-  line-height: 140%;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-
-#hud .load {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.55);
-}
-
-#hud .load span {
-  white-space: nowrap;
-}
-
 /* ============================================================ narrow screens
-   Nothing here changes the wide layout; the rules below only take over once
-   the window (or the phone) gets small enough that px-sized type and fixed
-   boxes would start to overflow, collide or scroll sideways. */
-
-@media (max-width: 900px) {
-  :root {
-    --panel-pad-y: 30px;
-    --panel-pad-x: 20px;
-    font: 16px/155% var(--sans);
-  }
-
-  /* the hud sits over the left edge of the viewport, never past it */
-  #hud {
-    width: min(260px, calc(100vw - 28px));
-  }
-
-  .prologue h1 {
-    font-size: clamp(40px, 9vw, 54px);
-  }
-
-  .lede p {
-    font-size: 17px;
-  }
-
-  #draft .scene h2 {
-    font-size: clamp(28px, 5vw, 38px);
-    letter-spacing: 0.08em;
-  }
-
-  #draft .scene p,
-  #chart .scene p {
-    font-size: clamp(18px, 2.8vw, 22px);
-  }
-
-  #pause .sheet {
-    padding: 32px clamp(22px, 6vw, 56px);
-  }
-
-  #pause h2 {
-    font-size: 30px;
-  }
-
-  #overlay h1 {
-    font-size: clamp(30px, 7vw, 40px);
-  }
-}
+   The type scale and spacing tokens already fold with the window, so these
+   rules only handle layout: what stacks and what hides. */
 
 @media (max-width: 640px) {
-  :root {
-    --panel-pad-y: 24px;
-    --panel-pad-x: 16px;
-  }
-
-  /* the section headers are a desktop nicety; the phone hud stays a bar */
   #hud .hud-block h3 {
     display: none;
   }
@@ -1019,7 +1117,7 @@ body {
   }
 
   #compass {
-    width: min(230px, calc(100vw - 24px));
+    width: min(240px, calc(100vw - 24px));
   }
 
   /* the hud becomes a bar across the bottom, full width minus the insets */
@@ -1028,15 +1126,9 @@ body {
     right: max(10px, env(safe-area-inset-right, 0px));
     bottom: max(10px, env(safe-area-inset-bottom, 0px));
     width: auto;
-    gap: 6px;
-    padding: 10px 12px;
-    font-size: 11px;
-  }
-
-  #bearings,
-  #build-list {
-    font-size: 11px;
-    line-height: 135%;
+    max-width: none;
+    gap: 8px;
+    padding: 12px 14px;
   }
 
   /* card flavour text is the first thing to go when the panel gets tight */
@@ -1044,32 +1136,18 @@ body {
     display: none;
   }
 
-  #hud .load {
-    font-size: 10px;
-    gap: 6px 10px;
-  }
-
   /* the speed readout moves up out of the hud's way */
   #readout {
-    top: calc(clamp(58px, 8vh, 78px) + 102px);
+    top: clamp(150px, 26vh, 210px);
     right: max(14px, env(safe-area-inset-right, 0px));
     bottom: auto;
-    font-size: 16px;
-  }
-
-  #chart:has(.prologue) {
-    gap: 22px;
-  }
-
-  .prologue h1 {
-    font-size: clamp(36px, 13vw, 54px);
   }
 
   /* the manifest stacks instead of squeezing two columns into one line */
   .manifest li {
     display: grid;
-    gap: 2px;
-    padding: 11px 2px;
+    gap: 3px;
+    padding: var(--manifest-pad) 2px;
   }
 
   .manifest {
@@ -1077,70 +1155,24 @@ body {
   }
 
   .manifest span {
-    font-size: 13px;
     text-align: left;
-  }
-
-  .lede p {
-    font-size: 16px;
-    line-height: 168%;
-  }
-
-  #draft .scene h2 {
-    font-size: clamp(24px, 8vw, 34px);
-    letter-spacing: 0.06em;
-  }
-
-  #draft .scene p,
-  #chart .scene p {
-    font-size: 18px;
-    line-height: 160%;
-  }
-
-  .card,
-  #draft .card {
-    padding: 14px 16px;
-  }
-
-  #draft .card .preview {
-    font-size: 15px;
-    padding-left: 10px;
   }
 
   #pause .sheet {
     width: min(100%, 480px);
-    padding: 28px 20px;
-  }
-
-  #pause h2 {
-    font-size: 26px;
-  }
-
-  #overlay h1 {
-    font-size: clamp(28px, 9vw, 40px);
-  }
-
-  #log {
-    font-size: 14px;
-    padding-left: 18px;
-  }
-
-  .keys {
-    font-size: 12px;
   }
 
   .keys i {
     margin: 0 8px;
   }
 
-  /* one thumb, one column: the buttons go as wide as the panel allows */
   .sail,
   .go,
   #resume {
     min-width: 0;
     max-width: 360px;
-    padding-left: 24px;
-    padding-right: 24px;
+    padding-left: 26px;
+    padding-right: 26px;
   }
 
   .sail {
@@ -1161,114 +1193,18 @@ body {
   }
 }
 
-/* short windows (a phone held sideways): the hud keeps the helm instruments
-   and drops the shopping list, and the panels stop reserving headroom they
-   cannot use */
+/* short windows (a phone held sideways): plenty of ship to steer and no
+   room for the shopping list */
 @media (max-height: 560px) {
   :root {
     --panel-pad-y: 20px;
-  }
-
-  #hud {
-    gap: 5px;
-    padding: 8px 10px;
-    font-size: 11px;
-  }
-
-  #bearings {
-    padding-top: 6px;
-    font-size: 11px;
   }
 
   #build-list {
     display: none;
   }
 
-  #rig-block {
+  #upgrades-block {
     display: none;
-  }
-
-  #hud .load {
-    margin-top: 4px;
-    padding-top: 4px;
-    font-size: 10px;
-  }
-}
-
-/* ============================================================= short viewports
-   The opening page is the tallest thing in the game: on a laptop lid it ran
-   past the bottom of the screen, and before the scroll fix its title sat above
-   the scroll range where nothing could reach it. These two tiers fold the page
-   up as the window gets shorter — gaps tighten, the lede comes down a step,
-   the manifest rows get thinner — so it fits a normal laptop without scrolling
-   and still scrolls cleanly when it cannot. */
-
-@media (max-height: 960px) {
-  :root {
-    --panel-pad-y: 32px;
-  }
-
-  #chart:has(.prologue) {
-    gap: 18px;
-  }
-
-  .prologue {
-    gap: 18px;
-  }
-
-  .prologue h1 {
-    font-size: clamp(38px, 6.5vh, 54px);
-  }
-
-  .lede p {
-    font-size: 17px;
-    line-height: 164%;
-  }
-
-  .manifest li {
-    padding: 8px 2px;
-  }
-}
-
-@media (max-height: 800px) {
-  :root {
-    --panel-pad-y: 22px;
-  }
-
-  #chart:has(.prologue) {
-    gap: 12px;
-  }
-
-  .prologue {
-    gap: 12px;
-  }
-
-  .prologue h1 {
-    font-size: clamp(30px, 6vh, 44px);
-  }
-
-  .lede {
-    gap: 8px;
-  }
-
-  .lede p {
-    font-size: 15px;
-    line-height: 152%;
-  }
-
-  .manifest li {
-    padding: 5px 2px;
-  }
-
-  .manifest b {
-    font-size: 16px;
-  }
-
-  .manifest span {
-    font-size: 12px;
-  }
-
-  .keys {
-    font-size: 12px;
   }
 }

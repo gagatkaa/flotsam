@@ -4,23 +4,23 @@ export const CARDS: readonly Card[] = [
   // ---------------------------------------------------------------- hull
   {
     id: 'plating',
-    name: 'Reinforced Plating',
+    name: 'Twice as Thick',
     family: 'hull',
-    text: 'Two planks thick at the waterline, where the sea punches hardest. They hit; you shrug.',
+    text: 'Two planks thick where the sea hits hardest. They hit; you shrug.',
     add: { hull: 30 },
   },
   {
     id: 'keel',
-    name: 'Deep Keel',
+    name: 'Deep Bottom',
     family: 'hull',
-    text: 'Deeper below the waterline than anyone would build her. She shoulders through the swell instead of climbing every wave.',
+    text: 'Deeper in the water than anyone would build her. She pushes through the waves instead of climbing every one.',
     mul: { hull: 1.15, speed: 0.92 },
   },
   {
     id: 'buoyancy',
-    name: 'Buoyancy',
+    name: 'Floats Higher',
     family: 'hull',
-    text: 'Corked up high and easy. The waves grab hold of less of her — and let more of her up for air.',
+    text: 'Sits high in the water. The waves grab less of her, and she bobs right back up.',
     mul: { waveImpact: 0.6, rideHeight: 1.6 },
   },
 
@@ -34,39 +34,39 @@ export const CARDS: readonly Card[] = [
   },
   {
     id: 'rigging',
-    name: 'Running Rigging',
+    name: 'Tighter Ropes',
     family: 'sail',
-    text: 'Every line taut and waiting. She answers the moment you ask.',
+    text: 'Every rope tight and waiting. She answers the moment you ask.',
     mul: { accel: 1.1 },
   },
   {
     id: 'fairlead',
-    name: 'Fairlead Chains',
+    name: 'Iron Chains',
     family: 'sail',
     text: 'Iron chains where rope used to be. She pivots hard and follows exactly where you point her.',
     mul: { turn: 1.1 },
   },
   {
     id: 'narrow-waist',
-    name: 'Narrow Waist',
+    name: 'Slim and Quick',
     family: 'sail',
-    text: 'Cut in at the waist until she turns on a coin. Some of her bones went to pay for it.',
+    text: 'Narrowed until she turns on the spot. It cost some of her strength to do it.',
     mul: { turn: 1.15, hull: 0.9 },
   },
   {
     id: 'studding',
-    name: 'Studding Sails',
+    name: 'Too Many Sails',
     family: 'sail',
-    text: 'Every sail you own and then some. She flies — and the sea hits back like it took it personally.',
+    text: 'Every sail you own and then some. She flies — and the waves hit back like it took it personally.',
     mul: { speed: 1.25, waveImpact: 1.3 },
   },
 
   // ---------------------------------------------------------------- utility
   {
     id: 'glass',
-    name: "Navigator's Glass",
+    name: 'Spyglass',
     family: 'utility',
-    text: 'One bearing by instinct; every bearing through the glass. You never sail blind again.',
+    text: 'One island by guess; every island through the glass. You never sail blind again.',
     add: { lookahead: 1 },
   },
   {
@@ -78,16 +78,16 @@ export const CARDS: readonly Card[] = [
   },
   {
     id: 'ballast',
-    name: 'Ballast Shift',
+    name: 'Weight Down Low',
     family: 'utility',
-    text: 'Ballast shifted low and heavy. Fast on the straight run, and she will complain if you ask her to turn.',
+    text: 'All the weight moved low and heavy. Fast in a straight line, and she will complain if you ask her to turn.',
     mul: { speed: 1.1, turn: 0.9 },
   },
   {
     id: 'pumps',
     name: 'Pumps',
     family: 'utility',
-    text: 'Bilge stays clear even when she is hurting. What the sea takes, she claws back.',
+    text: 'Water stays out even when she is hurting. What the sea takes, she claws back.',
     mul: { pumps: 1.08 },
   },
 
@@ -108,7 +108,7 @@ export const CARDS: readonly Card[] = [
   },
   {
     id: 'tight-fit',
-    name: 'Overloaded Hold',
+    name: 'Packed to the Rails',
     family: 'risky',
     text: 'Stuffed to the rails and lashed down hard. She runs heavy and fast, and every other wave reminds you why no one else does this.',
     mul: { speed: 1.18, frailty: 1.25 },

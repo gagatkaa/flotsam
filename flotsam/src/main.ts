@@ -1,4 +1,9 @@
 import './style.css'
+import '@fontsource-variable/fraunces'
+import '@fontsource-variable/fraunces/wght-italic.css'
+import '@fontsource/ibm-plex-mono/400.css'
+import '@fontsource/ibm-plex-mono/500.css'
+import '@fontsource/ibm-plex-mono/600.css'
 import * as THREE from 'three/webgpu'
 import {
   cameraPosition,
@@ -162,7 +167,7 @@ loadWorld()
 // --------------------------------------------------------------------- the hud
 const overlay = document.querySelector<HTMLDivElement>('#overlay')!
 const readouts = document.querySelector<HTMLSpanElement>('#readout')!
-const hullEl = document.querySelector<HTMLSpanElement>('#hull-fill')!
+const healthFill = document.querySelector<HTMLSpanElement>('#health-fill')!
 const piecesEl = document.querySelector<HTMLSpanElement>('#pieces')!
 const buildEl = document.querySelector<HTMLUListElement>('#build-list')!
 const chartEl = document.querySelector<HTMLDivElement>('#chart')!
@@ -196,7 +201,7 @@ function renderBuild() {
   for (const [card, count] of counts) {
     const li = document.createElement('li')
     li.innerHTML =
-      `<span class="count">${count > 1 ? `${count}×` : ''}</span> ${card.name} ` +
+      `<b>${count > 1 ? `${count}× ` : ''}${card.name}</b>` +
       `<span class="effect">${describe(card)}</span>` +
       `<span class="desc">${card.text}</span>`
     buildEl.appendChild(li)
@@ -216,7 +221,7 @@ function showIntro() {
   sheet.className = 'prologue'
 
   sheet.innerHTML =
-    '<p class="eyebrow">a short crossing</p>' +
+    '<p class="eyebrow">a short trip</p>' +
     '<h1>Flotsam</h1>' +
     '<div class="lede">' +
     `<p>Eleven days lost, and home is torn into ${CHART_PIECES} pieces — each one ` +
@@ -267,7 +272,7 @@ function showNothingHere(island: Island) {
   block.className = 'scene'
   block.innerHTML =
     `<h2>${island.name}</h2>` +
-    `<p>This island keeps its own counsel. Nothing has been written for it yet.</p>`
+    `<p>Nothing here yet. This island has no story to tell.</p>`
   draftEl.appendChild(block)
 
   const next = document.createElement('button')
@@ -344,11 +349,11 @@ function renderBearings() {
           const { bearing, range } = bearingAndRange(ship.position, nearest.position)
           return `${nearest.name} ${bearing}° · ${range} m`
         })()
-      : 'map complete'
+      : 'all islands found'
     return
   }
 
-  windEl.textContent = 'all islands'
+  windEl.textContent = 'every island'
 
   const rows = [...world.islands].sort((a, b) => {
     const da = Math.hypot(ship.position.x - a.position.x, ship.position.z - a.position.z)
@@ -506,7 +511,7 @@ function showAshore(event: IslandEvent) {
     // and then in hard numbers, so the decision is never a guess.
     const gains: string[] = []
     const costs: string[] = []
-    if (choice.piece) gains.push(`${event.title} map piece`)
+    if (choice.piece) gains.push('a piece of the map')
     if (choice.gain) gains.push(choice.gain.name)
     if (choice.crewDelta && choice.crewDelta > 0) gains.push(`${choice.crewDelta} crew`)
     if (choice.passengersDelta && choice.passengersDelta > 0) gains.push(`${choice.passengersDelta} rescued`)
@@ -521,9 +526,9 @@ function showAshore(event: IslandEvent) {
     if (choice.damage) costs.push(`${choice.damage} health`)
 
     const mods = [
-      ...gains.map((g) => `+ ${g}`),
-      ...costs.map((c) => `\u2212 ${c}`),
-    ].join('   ')
+      ...gains.map((g) => `<span class="gain">+ ${g}</span>`),
+      ...costs.map((c) => `<span class="cost">\u2212 ${c}</span>`),
+    ].join('')
 
     button.innerHTML =
       `<span class="text">${choice.text}</span>` +
@@ -548,7 +553,7 @@ function showSunk(log: string[]) {
   block.className = 'scene'
   block.innerHTML =
     '<h2>Sunk</h2>' +
-    '<p>She goes down with the chart still folded in the cabin table. Whatever it ' +
+    '<p>She goes down with the map still folded on the cabin table. Whatever it ' +
     'was about to show you, it will show nobody now. The sea closes over the boat — ' +
     'and over you.</p>'
   draftEl.appendChild(block)
@@ -574,7 +579,7 @@ function showHome(log: string[]) {
   block.innerHTML =
     '<h2>Home</h2>' +
     `<p>All ${CHART_PIECES} pieces, and a crew still alive to read them. Home opens a way ` +
-    'for you that no chart could have named. You are not the same boat that left it.</p>'
+    'for you that no map could have named. You are not the same boat that left it.</p>'
   draftEl.appendChild(block)
   draftEl.appendChild(buildLog(log))
   openPanel()
@@ -586,7 +591,7 @@ function showCharted() {
   const block = document.createElement('div')
   block.className = 'scene'
   block.innerHTML =
-    '<h2>The Whole Chart</h2>' +
+    '<h2>The Whole Map</h2>' +
     `<p>You lay the last of the ${CHART_PIECES} pieces into place and the sea finally ` +
     'closes up into a map. Every route home is on it now — the way in, the way out, ' +
     'and the way you came. The crew can smell land.</p>'
@@ -868,8 +873,8 @@ function animate() {
   }
 
   // ---- hud
-  hullEl.style.width = `${ship.health * 100}%`
-  hullEl.style.background = ship.health < 0.35 ? '#ff6a4d' : '#7fd4a1'
+  healthFill.style.width = `${ship.health * 100}%`
+  healthFill.style.backgroundColor = ship.health < 0.35 ? '#ff6a4d' : '#7fd4a1'
   readouts.textContent = `${(ship.speed * 1.2).toFixed(1)} knots`
   piecesEl.textContent = `${run.pieces.size}/${CHART_PIECES}`
 
