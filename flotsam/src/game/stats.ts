@@ -27,7 +27,7 @@ export interface Stats {
 }
 
 export const BASE_STATS: Stats = {
-  hull: 100,
+  hull: 60,
   speed: 8.5,
   accel: 1,
   turn: 0.85,
@@ -168,7 +168,7 @@ export function describe(card: Card): string {
 
   if ((card.add?.lookahead ?? 0) > 0) parts.push(LABELS.lookahead)
 
-  return parts.join('  ')
+  return parts.join('  ·  ')
 }
 
 const LABELS: Record<keyof Stats, string> = {

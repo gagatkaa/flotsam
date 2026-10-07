@@ -165,8 +165,8 @@ export class Ship {
 
     if (this.sinking) {
       this.sinkTimer += delta
-      this.speed -= this.speed * Math.min(1, 1.8 * delta)
-      this.roll += (1.1 - this.roll) * Math.min(1, 1.5 * delta)
+      this.speed = 0
+      this.turnLoad = 0
     } else {
       // ---- speed. A sail cannot push backwards, so S is not reverse: it is
       // backing the sheet, which stops her far harder than easing does. Losing
@@ -236,11 +236,15 @@ export class Ship {
     const turnHeel = this.sinking ? 0 : -this.turnLoad * HEEL * 0.55
 
     const waveRoll = Math.atan2(starboard - port, e * 2) * 0.7 * impact
-    const targetRoll = this.sinking ? 1.1 : waveRoll + heel + turnHeel
-    this.pitch += (this.sinking ? this.pitch : Math.atan2(bow - stern, e * 2) * impact - this.pitch) * follow
-    this.roll += (targetRoll - this.roll) * follow
+    // she lies over to a gentle, fixed list and stays there: the camera rides
+    // the deck, so a full capsize reads as the world spinning out of control
+    const targetRoll = this.sinking ? 0.22 : waveRoll + heel + turnHeel
+    // sink slow, list slow — settle onto the beam over a couple of seconds
+    const sway = this.sinking ? 1 - Math.min(1, 1.1 * delta) : follow
+    this.pitch += (this.sinking ? -this.pitch : Math.atan2(bow - stern, e * 2) * impact - this.pitch) * sway
+    this.roll += (targetRoll - this.roll) * sway
 
-    this.position.y = this.smoothedHeight + stats.rideHeight - this.sinkTimer * 0.9
+    this.position.y = this.smoothedHeight + stats.rideHeight - Math.min(this.sinkTimer, 9) * 0.9
     this.rig.position.set(x, this.position.y, z)
     this.rig.rotation.y = this.yaw
     this.deck.rotation.x = this.pitch

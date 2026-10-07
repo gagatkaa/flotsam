@@ -110,11 +110,16 @@ fn wake( p: vec3f, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 	let v = clamp( shipSpeed / 8.0, 0.0, 1.6 );
 
 	// calm the surface right under the keel so the hull is not buried in its
-	// own wake: 1.0 at the hull, ~0 a few metres out
-	let hull = exp( - dist * dist * 0.22 );
+	// own wake: 1.0 at the hull, ~0 a few metres out. Wide enough to swallow the
+	// whole boat, or the trench/bow seam at the beam shows as a crease in front
+	// of the camera's eye line.
+	let hull = exp( - dist * dist * 0.10 );
 
-	let behind = max( - along, 0.0 );
-	let ahead = max( along, 0.0 );
+	// ramp the wake in over the bow and out over the stern instead of starting
+	// it at full strength at along=0 — the hard start turned the seam into a
+	// visible fold in the water a step ahead of the hull.
+	let behind = smoothstep( 0.0, 0.8, - along );
+	let ahead = smoothstep( 0.0, 0.8, along );
 
 	// a rolling trench astern that wakes with speed and dies with distance
 	let trench = - 0.4 * v * exp( - behind * 0.16 ) * exp( - across * across * 0.08 );
