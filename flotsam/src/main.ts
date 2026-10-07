@@ -22,8 +22,9 @@ import seascapeEntry from './shaders/water/fragment.wgsl?raw'
 
 import { BoatControls } from './controls/BoatControls'
 import { Ship } from './objects/Ship'
-import { WaveField } from './objects/WaveField'
+import { WaveField, BASE_CHOPPY } from './objects/WaveField'
 import { Physics } from './physics/Physics'
+import { Soundscape } from './audio/Soundscape'
 import {
   bearingAndRange,
   buildWorld,
@@ -139,6 +140,14 @@ const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 2000)
 ship.cameraMount.add(camera)
 
 const controls = new BoatControls(camera, canvas)
+
+const sound = new Soundscape()
+
+// the sea can only begin after a gesture: start it on the very first click or
+// keypress, so it is already breathing by the time the player sets off.
+const wakeAudio = () => sound.start()
+window.addEventListener('pointerdown', wakeAudio, { once: true })
+window.addEventListener('keydown', wakeAudio, { once: true })
 
 // ------------------------------------------------------------------- lighting
 const sun = new THREE.DirectionalLight(0xfff2d8, 2.4)
@@ -257,6 +266,7 @@ function showIntro() {
   go.className = 'sail'
   go.textContent = 'Start sailing'
   go.addEventListener('click', () => {
+    sound.start()
     run.sail()
     hidePanels()
     lock()
@@ -344,6 +354,8 @@ let bearingTimer = 0
 
 /** true on frames the boat is pressing into a rock, so a bump only charges once */
 let grounded = false
+/** true on frames the hull is touching any solid, so a bump sounds only at the start */
+let wasTouching = false
 
 /**
  * What the instruments can tell you. Without a Navigator's Glass you get the one
@@ -664,6 +676,7 @@ controls.addEventListener('unlock', () => {
 })
 
 resumeEl.addEventListener('click', () => {
+  sound.start()
   hidePause()
   lock()
 })
@@ -680,6 +693,7 @@ window.addEventListener('keydown', (event) => {
   if (event.code !== 'Escape') return
   if (pauseEl.classList.contains('hidden')) return
   event.preventDefault()
+  sound.start()
   hidePause()
   lock()
 })
@@ -752,6 +766,10 @@ function animate() {
   waves.time = elapsed
   waves.choppy = choppy
 
+  // the sea bed follows the same swell that the shader renders
+  const rough = Math.max(0, Math.min(1, (choppy - BASE_CHOPPY) / 2.7))
+  sound.tick(rough, ship.speed, !pauseEl.classList.contains('hidden'))
+
   // the boat carves her own wake into the raymarched sea
   const sailSpeed = Math.max(0, ship.speed - 0.5)
   uShipPos.value = new THREE.Vector2(ship.position.x, ship.position.z)
@@ -802,15 +820,26 @@ function animate() {
   if (ship.alive) {
     let grinding = false
     let fastestHit = 0
+    let touching = false
+    let hardestContact = 0
     for (const hit of hits) {
       // push her back out of whatever she is biting into, plus a hair of slack
       ship.position.x += hit.nx * (hit.depth + 0.4)
       ship.position.z += hit.nz * (hit.depth + 0.4)
 
+      touching = true
+      if (hit.speed > hardestContact) hardestContact = hit.speed
       if (hit.kind !== 'rock') continue
       grinding = true
       if (hit.speed > fastestHit) fastestHit = hit.speed
     }
+
+    // the hull-slam sounds on first contact and not again until she is clear
+    if (touching && !wasTouching) {
+      const clearDeck = pauseEl.classList.contains('hidden') && !panelIsOpen()
+      if (clearDeck) sound.bump(hardestContact)
+    }
+    wasTouching = touching
 
     // A bump costs a visible chunk of the hull, charged once per grinding
     // episode. Calling damage() every frame drip-feeds the readout with a
