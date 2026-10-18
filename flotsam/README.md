@@ -16,7 +16,7 @@ Live demo: https://gagatkaa.github.io/flotsam/
 
 ## The voyage
 
-You start crewless, with a broken hull and a few rations. Nothing is free: every island takes a
+You start with three hands, a battered hull and a few rations. Nothing is free: every island takes a
 trade — provisions for hands, hands for supplies, unmarked salvage for an unmarked castaway. Guard
 your timber; grind against the rocks too long and the sea takes you.
 
@@ -47,11 +47,11 @@ fly-camera is dropped in favour of the pointer-locked game camera.
 | `#define EPSILON_NRM` | `epsScale` parameter, from `screenSize` |
 | `iMouse` steering | dropped, pointer-lock mouse look drives the camera instead |
 | `#ifdef AA` | not ported (disabled upstream) |
-| fixed `SEA_CHOPPY` | uniform, raised by ship speed — the sea chops up as you accelerate |
+| fixed `SEA_CHOPPY` | uniform, raised by the map pieces you hold — the sea chops up as the voyage goes on |
 | (nothing) | `wake(p, shipPos, shipDir, shipSpeed)` — the boat carves a wake into the field: a trench behind her, a bow wave ahead, and a spreading chevron of foam |
 
 The wake takes three extra uniforms (`uShipPos`, `uShipDir`, `uShipSpeed`) into the raymarch, merged
-into both the coarse `map()` and the detail `map_detailed()`, so the trench is real relief that the
+into `map()`, used both for the coarse raymarch and the detailed normals, so the trench is real relief that the
 sun and the fog light up — not a flat texture. The hull rides the same dent in the CPU mirror.
 
 Porting gotchas worth knowing: WGSL function parameters are immutable (`getSkyColor` needs a local
@@ -78,14 +78,14 @@ along instead of letting you sail through the island.
 | | |
 | --- | --- |
 | click | lock the mouse |
-| `W` / `S` | throttle ahead / astern |
+| `W` / `S` | fill the sail / back it to slow down (a sail cannot go astern) |
 | `A` / `D` | rudder left / right |
 | `E` | go ashore when an island waves you in |
 | mouse | look around while the pointer is locked |
 | `Esc` | release the mouse / close the pause |
 
-Sailing into an island offers the landing; choosing a coarse card comes at a price. The red gauge at
-the bow is the hull — at zero, the sea keeps you.
+Sailing close to an island offers the landing; every choice ashore shows what it gives and what it costs. The health gauge in
+the HUD is the hull — at zero, the sea keeps you.
 
 ## Stack
 
@@ -107,26 +107,31 @@ npm run preview
 
 ```
 flotsam/
-├── index.html
+├── index.html                   the HUD, panels and pause menu markup
 └── src/
-    ├── main.ts                  renderer, ocean background, uniforms, loop
-    ├── style.css                HUD: compass, cards, hull, bins
+    ├── main.ts                  renderer, ocean background, game flow and the per-frame loop
+    ├── style.css                HUD, compass, story panels, cards
+    ├── audio/
+    │   └── Soundscape.ts        sea loop, hull churn and collision sounds (Web Audio)
     ├── controls/
-    │   └── BoatControls.ts      pointer-lock look, throttle + rudder, sail/anchors
+    │   └── BoatControls.ts      pointer-lock look, throttle + rudder from W/A/S/D
     ├── objects/
-    │   ├── Ship.ts              hull, sail, wave-following kinematics, damage
+    │   ├── Ship.ts              boat model, sailing kinematics, riding the waves, damage
     │   └── WaveField.ts         CPU mirror of the shader's waves + wake
     ├── physics/
     │   └── Physics.ts           cannon-es world: islands, rocks, hull contacts
     ├── shaders/water/
     │   ├── lib.wgsl             ported constants + helpers + wake()
     │   └── fragment.wgsl        entry function called from TSL
+    ├── ui/
+    │   ├── compass.ts           the heading-up compass tape
+    │   └── story.ts             builders for the intro, island scenes and choice cards
     └── game/
-        ├── world.ts             islands, hazards, island tints, world seed
-        ├── events.ts            the island trades and what they cost
-        ├── cards.ts             coarse vs fine choices
-        ├── run.ts               phases and the run pipeline
-        └── stats.ts             voyage persistence across reloads
+        ├── world.ts             island layout, rocks, flags, bearings
+        ├── events.ts            the story on each island and its choices
+        ├── cards.ts             the upgrades a choice can give you
+        ├── run.ts               the run state machine: sail, land, choose, sink or go home
+        └── stats.ts             turns upgrades and cargo into the boat's handling numbers
 ```
 
 ## Extra marks

@@ -1,4 +1,4 @@
-import { resolve, type Card } from './stats'
+import { resolve, STARTING_LOAD, type Card } from './stats'
 import { CHART_PIECES, type Island } from './world'
 
 export type Phase = 'intro' | 'sailing' | 'telling' | 'ashore' | 'charted' | 'home' | 'dead'
@@ -37,7 +37,6 @@ export interface Choice {
 }
 
 export interface IslandEvent {
-  island: string
   /** shown as the title when you land */
   title: string
   /** the story telling: what the island is before you set foot on it */
@@ -47,11 +46,11 @@ export interface IslandEvent {
   choices: Choice[]
 }
 
+/** what the run tells the outside world (the HUD and the ship) as it moves along */
 export interface RunEvents {
   onDepart(): void
   onTell(event: IslandEvent, island: Island): void
   onAshore(event: IslandEvent, island: Island): void
-  onDepart(): void
   onDamage(amount: number): void
   onCharted(): void
   onHome(log: string[]): void
@@ -67,7 +66,7 @@ export interface RunEvents {
 export class Run {
   phase: Phase = 'intro'
   deck: Card[] = []
-  /** islands whose event has resolved */
+  /** islands you have landed on */
   visited = new Set<string>()
   /** map pieces: the thing you're actually collecting */
   pieces = new Set<string>()
@@ -76,10 +75,10 @@ export class Run {
   /** flags set by choices, read by other islands' choices */
   flags = new Set<string>()
   /** what you are carrying on deck, not what you have bolted to it */
-  crew = 3
-  passengers = 0
-  gold = 0
-  provisions = 8
+  crew = STARTING_LOAD.crew
+  passengers = STARTING_LOAD.passengers
+  gold = STARTING_LOAD.gold
+  provisions = STARTING_LOAD.provisions
 
   private readonly events: RunEvents
 
@@ -96,13 +95,14 @@ export class Run {
     })
   }
 
+  /** how many copies of each card are in the deck */
   counts(): Map<Card, number> {
     const counts = new Map<Card, number>()
     for (const card of this.deck) counts.set(card, (counts.get(card) ?? 0) + 1)
     return counts
   }
 
-  /** cast off after an event */
+  /** cast off, at the start or after an event */
   sail() {
     this.phase = 'sailing'
     this.events.onDepart()
@@ -121,13 +121,16 @@ export class Run {
     this.events.onAshore(event, island)
   }
 
-  /**
-   * Set sail for home with the whole chart in hand. Called directly rather than
-   * through resolve(), because going home has no choice to make.
-   */
+  /** sail for home with the whole chart in hand. There is no choice to make */
   reachHome() {
     this.phase = 'home'
     this.events.onHome(this.log)
+  }
+
+  /** the voyage is over, whether the hull gave out or the crew did */
+  sink() {
+    this.phase = 'dead'
+    this.events.onSunk(this.log)
   }
 
   /** the player took an option: apply it, then cast off */
@@ -138,24 +141,17 @@ export class Run {
     if (choice.lose) this.deck = this.deck.filter((card) => card.id !== choice.lose)
     if (choice.damage) this.events.onDamage(choice.damage)
     if (choice.sets) this.flags.add(choice.sets)
-
     if (choice.piece) this.pieces.add(choice.piece)
 
-    if (choice.crewDelta !== undefined) this.crew += choice.crewDelta
-    if (choice.passengersDelta !== undefined) this.passengers += choice.passengersDelta
-    if (choice.goldDelta !== undefined) this.gold += choice.goldDelta
-    if (choice.provisionsDelta !== undefined) this.provisions += choice.provisionsDelta
+    // nobody can hold "negative" people, so every count stops at zero
+    this.crew = Math.max(0, this.crew + (choice.crewDelta ?? 0))
+    this.passengers = Math.max(0, this.passengers + (choice.passengersDelta ?? 0))
+    this.gold = Math.max(0, this.gold + (choice.goldDelta ?? 0))
+    this.provisions = Math.max(0, this.provisions + (choice.provisionsDelta ?? 0))
 
-    // do not drop below zero. nobody can hold "negative" people
-    if (this.crew < 0) this.crew = 0
-    if (this.passengers < 0) this.passengers = 0
-    if (this.gold < 0) this.gold = 0
-    if (this.provisions < 0) this.provisions = 0
-
-    // if there is no crew left to sail her, the voyage is over
-    if (this.crew <= 0 && this.phase !== 'dead') {
-      this.phase = 'dead'
-      this.events.onSunk(this.log)
+    // with no crew left to sail her, the voyage is over
+    if (this.crew === 0) {
+      this.sink()
       return
     }
 

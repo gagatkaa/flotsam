@@ -4,27 +4,21 @@ import { BASE_CHOPPY } from '../objects/WaveField'
 export interface Hazard {
   position: THREE.Vector3
   radius: number
-  /** damage per second while you are grinding against it */
-  damage: number
   mesh: THREE.Object3D
 }
 
 export interface Island {
   id: string
   name: string
-  /** one line of flavour, shown in the destination list */
-  note: string
   /** the island's own hue, painted on the land itself and on its chart marks */
   tint: number
   position: THREE.Vector3
   /** you count as landed inside this */
   radius: number
-  /** index into the event table, filled in when the events land */
+  /** key into the event table in events.ts */
   event: string
   group: THREE.Group
-  /** raised once you have been here, so the island is visibly finished */
-  flagged: boolean
-  /** the cloth on the pole, kept back so the loop can move it */
+  /** the cloth on the flag pole, raised once you have been here, so the loop can wave it */
   flag: THREE.Object3D | null
   /**
    * Where the island is riding this frame, smoothed across frames by the loop.
@@ -39,8 +33,8 @@ export interface World {
   hazards: Hazard[]
 }
 
-export function randomSource(seed: number) {
-  // mulberry32, so a seed always lays out the same islands
+/** mulberry32, so a seed always lays out the same islands */
+function randomSource(seed: number) {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) >>> 0
@@ -51,50 +45,54 @@ export function randomSource(seed: number) {
   }
 }
 
-/** the sea closes in the longer you're out there */
-export function choppyForIslands(cleared: number) {
-  return BASE_CHOPPY + Math.min(2.7, cleared * 0.68)
+/** how much rougher the sea gets, at most, on top of BASE_CHOPPY */
+export const MAX_EXTRA_CHOP = 2.7
+
+/** the sea closes in the more of the map you hold */
+export function choppyForPieces(pieces: number) {
+  return BASE_CHOPPY + Math.min(MAX_EXTRA_CHOP, pieces * 0.68)
 }
 
 /** the wind that pushes you off a straight line, strongest late in a run */
-export function driftForIslands(cleared: number) {
-  return Math.min(1.9, cleared * 0.48)
+export function driftForPieces(pieces: number) {
+  return Math.min(1.9, pieces * 0.48)
 }
 
 interface IslandSpec {
   id: string
   name: string
-  note: string
+  /** the one-line hint on the opening page */
+  teaser: string
   event: string
   tint: number
 }
 
-const SPECS: IslandSpec[] = [
+export const ISLAND_SPECS: readonly IslandSpec[] = [
   {
     id: 'wreck',
     name: "The Ship That Wouldn't Sink",
-    note: 'Drifting in circles, half underwater already, with no one on deck.',
+    teaser: 'and the bell keeps ringing below',
     event: 'wreck',
     tint: 0x8a4a34,
   },
   {
     id: 'gallows',
     name: 'The Lighthouse With No Light',
-    note: 'Its lantern is dark, but the great mirror inside still turns.',
+    teaser: 'the door just slammed behind you',
     event: 'gallows',
     tint: 0x6c5b80,
   },
   {
     id: 'kitchen',
     name: 'The Crab Market',
-    note: 'A dock turned into a market, shouting and selling and an enormous crab.',
+    teaser: 'loud, and one crab bigger than a cart',
     event: 'kitchen',
     tint: 0x9c6429,
   },
   {
     id: 'bones',
     name: 'The Sleeping Giant',
-    note: 'White cliffs that move when you watch them long enough.',
+    teaser: 'white cliffs, if you look twice',
     event: 'bones',
     tint: 0xc9bc9d,
   },
@@ -105,7 +103,10 @@ const SPECS: IslandSpec[] = [
  * changing the archipelago cannot leave the win condition disagreeing with the
  * map.
  */
-export const CHART_PIECES = SPECS.length
+export const CHART_PIECES = ISLAND_SPECS.length
+
+/** clear water to leave between two islands' landing beaches */
+const SEPARATION = 52
 
 /** a squat stack of cones and cylinders: enough to read as land at 400m */
 function makeIslandBody(random: () => number, radius: number, tint: number) {
@@ -150,9 +151,9 @@ function makeIslandBody(random: () => number, radius: number, tint: number) {
   }
 
   // a few leaning posts, so the silhouette is not just a lump
+  const timber = new THREE.MeshStandardNodeMaterial({ color: 0x4a3a28, roughness: 0.9 })
   for (let i = 0; i < 3; i++) {
     if (random() > 0.6) continue
-    const timber = new THREE.MeshStandardNodeMaterial({ color: 0x4a3a28, roughness: 0.9 })
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 3 + random() * 3, 5), timber)
     const angle = random() * Math.PI * 2
     post.position.set(Math.sin(angle) * radius * 0.6, 2, Math.cos(angle) * radius * 0.6)
@@ -163,6 +164,7 @@ function makeIslandBody(random: () => number, radius: number, tint: number) {
   return group
 }
 
+/** two or three boulders huddled together */
 function makeRock(radius: number, random: () => number) {
   const group = new THREE.Group()
   const material = new THREE.MeshStandardNodeMaterial({
@@ -186,68 +188,65 @@ function makeRock(radius: number, random: () => number) {
 }
 
 /**
- * Lay out the seven islands and the rock between them. Islands are spread
- * around the origin on a rough ring so any one can be sailed to first, which is
- * what makes the destination list a real decision rather than a queue.
+ * Pick a spot for a new island of this radius, clear of the islands already
+ * placed. Islands are spread around the origin on a rough ring so any one can
+ * be sailed to first.
  */
-/** clear water to leave between two islands' landing beaches */
-const SEPARATION = 52
+function placeIsland(index: number, radius: number, placed: Island[], random: () => number) {
+  const isClear = (x: number, z: number, other: Island) =>
+    Math.hypot(x - other.position.x, z - other.position.z) > radius + other.radius + SEPARATION
 
+  // Rejection sampling rather than nudging: pick a spot on the ring, and if
+  // it lands too near an island already placed, draw again. Nudging a point
+  // off a neighbour can drop it onto a different one, and there is no reason
+  // to accept a bad layout when free spots are cheap.
+  let x = 0
+  let z = 0
+  for (let attempt = 0; attempt < 80; attempt++) {
+    // golden-angle spread keeps them from clumping; jitter breaks the pattern
+    const angle = index * 2.39996 + random() * 1.2 + attempt * 0.7
+    // widen the ring a little on each retry so a crowded start can still fit
+    const distance = 80 + random() * 120 + attempt * 3
+
+    x = Math.sin(angle) * distance
+    z = Math.cos(angle) * distance
+    if (placed.every((other) => isClear(x, z, other))) break
+  }
+
+  // Guarantee it. If every candidate was crowded, walk outward along the
+  // direction away from the nearest neighbour until there is room. Slowly
+  // breaking the ring is much better than two islands you cannot land on.
+  for (let pass = 0; pass < 40; pass++) {
+    let nearest: Island | null = null
+    let gap = Infinity
+    for (const other of placed) {
+      const distance = Math.hypot(x - other.position.x, z - other.position.z)
+      if (distance < gap) {
+        gap = distance
+        nearest = other
+      }
+    }
+    if (!nearest || isClear(x, z, nearest)) break
+
+    const away = new THREE.Vector3(x - nearest.position.x, 0, z - nearest.position.z)
+    if (away.lengthSq() < 0.001) away.set(1, 0, 0)
+    away.normalize().multiplyScalar(radius + nearest.radius + SEPARATION - gap + 1)
+    x += away.x
+    z += away.z
+  }
+
+  return new THREE.Vector3(x, 0, z)
+}
+
+/** Lay out the islands and the rocks between them. The same seed gives the same sea */
 export function buildWorld(seed = Math.random() * 0xffffffff): World {
   const random = randomSource(seed)
   const islands: Island[] = []
   const hazards: Hazard[] = []
 
-  const place = new THREE.Vector3()
-
-  SPECS.forEach((spec, index) => {
+  ISLAND_SPECS.forEach((spec, index) => {
     const radius = 15 + random() * 9
-
-    // Rejection sampling rather than nudging: pick a spot on the ring, and if
-    // it lands too near an island already placed, draw again. Nudging a point
-    // off a neighbour can drop it onto a different one, and there is no reason
-    // to accept a bad layout when free spots are cheap.
-    let x = 0
-    let z = 0
-    for (let attempt = 0; attempt < 80; attempt++) {
-      // golden-angle spread keeps them from clumping; jitter breaks the pattern
-      const angle = index * 2.39996 + random() * 1.2 + attempt * 0.7
-      // widen the ring a little on each retry so a crowded start can still fit
-      const distance = 80 + random() * 120 + attempt * 3
-
-      x = Math.sin(angle) * distance
-      z = Math.cos(angle) * distance
-
-      const clear = islands.every((other) => {
-        const gap = Math.hypot(x - other.position.x, z - other.position.z)
-        return gap > radius + other.radius + SEPARATION
-      })
-      if (clear) break
-    }
-
-    // Guarantee it. If every candidate was crowded, walk outward along the
-    // direction away from the nearest neighbour until there is room. Slowly
-    // breaking the ring is much better than two islands you cannot land on.
-    for (let pass = 0; pass < 40; pass++) {
-      let nearest: Island | null = null
-      let gap = Infinity
-      for (const other of islands) {
-        const distance = Math.hypot(x - other.position.x, z - other.position.z)
-        if (distance < gap) {
-          gap = distance
-          nearest = other
-        }
-      }
-      if (!nearest || gap > radius + nearest.radius + SEPARATION) break
-
-      const away = new THREE.Vector3(x - nearest.position.x, 0, z - nearest.position.z)
-      if (away.lengthSq() < 0.001) away.set(1, 0, 0)
-      away.normalize().multiplyScalar(radius + nearest.radius + SEPARATION - gap + 1)
-      x += away.x
-      z += away.z
-    }
-
-    place.set(x, 0, z)
+    const position = placeIsland(index, radius, islands, random)
 
     const group = makeIslandBody(random, radius, spec.tint)
     group.name = spec.id
@@ -255,13 +254,11 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
     islands.push({
       id: spec.id,
       name: spec.name,
-      note: spec.note,
       tint: spec.tint,
       event: spec.event,
-      position: place.clone(),
+      position,
       radius,
       group,
-      flagged: false,
       flag: null,
       ride: { height: 0, pitch: 0, roll: 0 },
     })
@@ -289,7 +286,6 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
     hazards.push({
       position: new THREE.Vector3(x, 0, z),
       radius,
-      damage: 10,
       mesh: makeRock(radius, random),
     })
   }
@@ -303,8 +299,7 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
  * cannot land on it twice, and the flag is why that reads at two hundred metres.
  */
 export function raiseFlag(island: Island) {
-  if (island.flagged) return
-  island.flagged = true
+  if (island.flag) return
 
   const timber = new THREE.MeshStandardNodeMaterial({ color: 0x53442f, roughness: 0.9 })
   const cloth = new THREE.MeshStandardNodeMaterial({
@@ -325,7 +320,7 @@ export function raiseFlag(island: Island) {
   pole.add(banner)
 
   // stand it up on the beach, clear of the rocks. Hash the id so each flag
-  // lands in a different spot rather than all seven in a neat ring.
+  // lands in a different spot rather than all of them in a neat ring.
   const seed = [...island.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7)
   const angle = ((seed % 360) / 360) * Math.PI * 2
   const out = island.radius * 0.6
@@ -336,15 +331,23 @@ export function raiseFlag(island: Island) {
   island.flag = banner
 }
 
-const bearingScratch = new THREE.Vector3()
+/** the island's hue as a CSS colour, for the chart marks that carry it */
+export function tintCss(island: Island) {
+  return `#${island.tint.toString(16).padStart(6, '0')}`
+}
 
-/** compass bearing to a target, and the range to it, for the destination list */
+/** distance between two points across the water, ignoring height */
+export function flatDistance(a: THREE.Vector3, b: THREE.Vector3) {
+  return Math.hypot(a.x - b.x, a.z - b.z)
+}
+
+/** compass bearing (whole degrees, 0 = north) and range (whole metres) to a target */
 export function bearingAndRange(from: THREE.Vector3, to: THREE.Vector3) {
-  bearingScratch.set(to.x - from.x, 0, to.z - from.z)
-  const range = bearingScratch.length()
-  const degrees = (Math.atan2(bearingScratch.x, -bearingScratch.z) * 180) / Math.PI
+  const dx = to.x - from.x
+  const dz = to.z - from.z
+  const degrees = (Math.atan2(dx, -dz) * 180) / Math.PI
   return {
-    bearing: ((degrees + 360) % 360).toFixed(0),
-    range: range.toFixed(0),
+    bearing: Math.round((degrees + 360) % 360),
+    range: Math.round(Math.hypot(dx, dz)),
   }
 }

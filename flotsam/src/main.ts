@@ -29,40 +29,43 @@ import {
   bearingAndRange,
   buildWorld,
   CHART_PIECES,
-  choppyForIslands,
-  driftForIslands,
+  choppyForPieces,
+  driftForPieces,
+  flatDistance,
+  MAX_EXTRA_CHOP,
   raiseFlag,
+  tintCss,
   type Island,
-  type World,
 } from './game/world'
 import { eventFor } from './game/events'
-import { cardName } from './game/cards'
-import { Run, type Choice, type IslandEvent } from './game/run'
+import { Run, type IslandEvent } from './game/run'
 import { describe } from './game/stats'
-
-const canvas = document.createElement('canvas')
-canvas.id = 'webgl'
-document.querySelector<HTMLDivElement>('#app')!.appendChild(canvas)
+import { renderCompass, type CompassMark } from './ui/compass'
+import { button, choiceCard, introSheet, sceneBlock, voyageLog } from './ui/story'
 
 // ----------------------------------------------------------------------- map
 // One pass top to bottom:
-//   1. renderer + scene          the WebGPURenderer and the skybox it will draw
-//   2. ocean shader             "Seascape" wired in as scene.backgroundNode (lines ~58)
-//   3. the run + ship           the game state machine and the boat that sails it
-//   4. lighting, then the hud   sun, the reading panels, the opening page
-//   5. the loop                 every frame: shader uniforms -> sail -> physics
-//                               -> islands/rocks -> compass -> hud
-// The interesting-to-a-teacher parts are the ocean shader section and the
-// per-frame loop (marked `loop` below); everything else is presentation for the
-// "more than just looking around" part of the assignment.
+//   1. renderer + scene    the WebGPURenderer and the scene it draws
+//   2. ocean shader        "Seascape" wired in as scene.backgroundNode
+//   3. the run + ship      the game state machine and the boat that sails it
+//   4. lighting + world    sun, sky, the islands and the rocks
+//   5. the hud             the reading panels, the pause menu, the compass
+//   6. the loop            every frame: shader uniforms -> sail -> physics
+//                          -> islands/rocks -> landing -> hud
+
+const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!
+
+const canvas = document.createElement('canvas')
+canvas.id = 'webgl'
+$('#app').appendChild(canvas)
 
 // the ported shader is raw WGSL, so there is no WebGL2 fallback
 if (!('gpu' in navigator)) {
-  document.querySelector<HTMLDivElement>('#overlay')?.classList.remove('hidden')
-  document.querySelector<HTMLDivElement>('#chart')?.classList.add('hidden')
+  $('#overlay').classList.remove('hidden')
   throw new Error('WebGPU is not available in this browser')
 }
 
+// ------------------------------------------------------- renderer + scene
 const renderer = new THREE.WebGPURenderer({ canvas, antialias: false })
 // Seascape is expensive (32 raymarch steps + 4 detailed height samples per pixel),
 // so render at 1 device pixel per CSS pixel.
@@ -75,41 +78,33 @@ scene.fog = new THREE.FogExp2(0x9fc4dd, 0.0035)
 
 // ---------------------------------------------------------------- ocean shader
 // "Seascape" by Alexander Alekseev aka TDM - https://www.shadertoy.com/view/Ms2SD1
-// The helpers are emitted at module scope ahead of the entry function.
-const seascape = wgslFn<[THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node, THREE.Node]>(
-  seascapeEntry,
-  [wgsl(seascapeHelpers)],
-)
+// The helpers are emitted at module scope ahead of the entry function. `wgslFn`
+// is typed as returning an untyped Node, so cast it to a vec3 node.
+const seascape = wgslFn(seascapeEntry, [wgsl(seascapeHelpers)]) as unknown as (
+  ...args: THREE.Node[]
+) => ReturnType<typeof vec3>
 
 const uTime = uniform(0)
-const uChoppy = uniform(4)
+const uChoppy = uniform(BASE_CHOPPY)
 // the boat's own wake: where she is, which way she points, and how fast
 const uShipPos = uniform(new THREE.Vector2(0, 0))
 const uShipDir = uniform(new THREE.Vector2(0, -1))
 const uShipSpeed = uniform(0)
 
-// `wgslFn` is typed as returning an untyped Node, so cast it to a vec3 node
-const seascapeColor = seascape as unknown as (...args: THREE.Node[]) => ReturnType<typeof vec3>
-
-const rayDir = normalize(positionWorld)
 // three renders scene.backgroundNode on a skybox sphere with its translation
 // stripped, so positionWorld is the world space view ray of this fragment.
 scene.backgroundNode = vec4(
-  seascapeColor(rayDir, cameraPosition, screenSize, uTime, uChoppy, uShipPos, uShipDir, uShipSpeed),
+  seascape(normalize(positionWorld), cameraPosition, screenSize, uTime, uChoppy, uShipPos, uShipDir, uShipSpeed),
   1,
 )
 
-// ---------------------------------------------------------------------- the run
 // the CPU mirror of the shader's wave field, so the ship rides the visible water
 const waves = new WaveField()
 
+// ---------------------------------------------------------------- the run + ship
 const run = new Run({
-  onTell(event, island) {
-    showTell(event, island)
-  },
-  onAshore(event) {
-    showAshore(event)
-  },
+  onTell: showTell,
+  onAshore: showAshore,
   onDepart() {
     // a choice can change the boat, so hand the new numbers over and redraw
     ship.applyStats(run.stats)
@@ -120,9 +115,7 @@ const run = new Run({
   onDamage(amount) {
     ship.damage(amount)
   },
-  onCharted() {
-    showCharted()
-  },
+  onCharted: showCharted,
   onHome(log) {
     renderBuild()
     showHome(log)
@@ -149,66 +142,54 @@ const wakeAudio = () => sound.start()
 window.addEventListener('pointerdown', wakeAudio, { once: true })
 window.addEventListener('keydown', wakeAudio, { once: true })
 
-// ------------------------------------------------------------------- lighting
+// ---------------------------------------------------------- lighting + world
 const sun = new THREE.DirectionalLight(0xfff2d8, 2.4)
 sun.position.set(-40, 14, -20)
 scene.add(sun)
 
-const sky = new THREE.HemisphereLight(0xbfe3ff, 0x1d4a63, 1.1)
-scene.add(sky)
+scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x1d4a63, 1.1))
 
 const physics = new Physics()
-let world: World
-
-function loadWorld(seed?: number) {
-  world = buildWorld(seed)
-  for (const island of world.islands) {
-    scene.add(island.group)
-    physics.island(island.position.x, island.position.z, island.radius)
-  }
-  for (const hazard of world.hazards) {
-    scene.add(hazard.mesh)
-    physics.rock(hazard.position.x, hazard.position.z, hazard.radius)
-  }
+const world = buildWorld()
+for (const island of world.islands) {
+  scene.add(island.group)
+  physics.island(island.position.x, island.position.z, island.radius)
 }
-loadWorld()
+for (const hazard of world.hazards) {
+  scene.add(hazard.mesh)
+  physics.rock(hazard.position.x, hazard.position.z, hazard.radius)
+}
 
 // --------------------------------------------------------------------- the hud
-const overlay = document.querySelector<HTMLDivElement>('#overlay')!
-const readouts = document.querySelector<HTMLSpanElement>('#readout')!
-const healthFill = document.querySelector<HTMLSpanElement>('#health-fill')!
-const healthNum = document.querySelector<HTMLSpanElement>('#health-num')!
-const piecesEl = document.querySelector<HTMLSpanElement>('#pieces')!
-const buildEl = document.querySelector<HTMLUListElement>('#build-list')!
-const chartEl = document.querySelector<HTMLDivElement>('#chart')!
-const draftEl = document.querySelector<HTMLDivElement>('#draft')!
-const flash = document.querySelector<HTMLDivElement>('#damage')!
-const windEl = document.querySelector<HTMLSpanElement>('#wind')!
-const bearingsEl = document.querySelector<HTMLUListElement>('#bearings')!
-const pauseEl = document.querySelector<HTMLDivElement>('#pause')!
-const resumeEl = document.querySelector<HTMLButtonElement>('#resume')!
-const pauseStatEl = document.querySelector<HTMLParagraphElement>('#pause-stat')!
-const loadCrewEl = document.querySelector<HTMLSpanElement>('#load-crew')!
-const loadPassEl = document.querySelector<HTMLSpanElement>('#load-pass')!
-const loadGoldEl = document.querySelector<HTMLSpanElement>('#load-gold')!
-const loadFoodEl = document.querySelector<HTMLSpanElement>('#load-food')!
-const landEl = document.querySelector<HTMLButtonElement>('#land')!
-const compassEl = document.querySelector<HTMLDivElement>('#compass')!
-const compassTape = document.querySelector<HTMLDivElement>('#compass-tape')!
-const compassHead = document.querySelector<HTMLSpanElement>('#compass-head')!
-const compassWord = document.querySelector<HTMLSpanElement>('#compass-word')!
-
-landEl.addEventListener('click', () => landOn(landingTarget))
-
-function hidePanels() {
-  chartEl.classList.add('hidden')
-  draftEl.classList.add('hidden')
+const overlay = $<HTMLDivElement>('#overlay')
+const speedEl = $<HTMLSpanElement>('#readout')
+const healthFill = $<HTMLSpanElement>('#health-fill')
+const healthNum = $<HTMLSpanElement>('#health-num')
+const piecesEl = $<HTMLSpanElement>('#pieces')
+const buildEl = $<HTMLUListElement>('#build-list')
+const chartEl = $<HTMLDivElement>('#chart')
+const draftEl = $<HTMLDivElement>('#draft')
+const damageFlash = $<HTMLDivElement>('#damage')
+const windEl = $<HTMLSpanElement>('#wind')
+const bearingsEl = $<HTMLUListElement>('#bearings')
+const pauseEl = $<HTMLDivElement>('#pause')
+const pauseStatEl = $<HTMLParagraphElement>('#pause-stat')
+const loadCrewEl = $<HTMLSpanElement>('#load-crew')
+const loadPassEl = $<HTMLSpanElement>('#load-pass')
+const loadGoldEl = $<HTMLSpanElement>('#load-gold')
+const loadFoodEl = $<HTMLSpanElement>('#load-food')
+const landEl = $<HTMLButtonElement>('#land')
+const compassEl = $<HTMLDivElement>('#compass')
+const compass = {
+  tape: $<HTMLDivElement>('#compass-tape'),
+  head: $<HTMLSpanElement>('#compass-head'),
+  word: $<HTMLSpanElement>('#compass-word'),
 }
 
+/** the upgrades list and what is on board */
 function renderBuild() {
   buildEl.innerHTML = ''
-  const counts = run.counts()
-  for (const [card, count] of counts) {
+  for (const [card, count] of run.counts()) {
     const li = document.createElement('li')
     li.innerHTML =
       `<b>${count > 1 ? `${count}× ` : ''}${card.name}</b>` +
@@ -223,62 +204,20 @@ function renderBuild() {
   loadFoodEl.textContent = `food ${run.provisions}`
 }
 
-// ---- opening: the situation, the seven, then cast off
-function showIntro() {
-  chartEl.innerHTML = ''
+// ---- panels. The intro lives in #chart, every other page of the story in #draft.
 
-  const sheet = document.createElement('div')
-  sheet.className = 'prologue'
+/** a panel of the game's own has the screen */
+function panelIsOpen() {
+  return !chartEl.classList.contains('hidden') || !draftEl.classList.contains('hidden')
+}
 
-  sheet.innerHTML =
-    '<p class="eyebrow">a short trip</p>' +
-    '<h1>Flotsam</h1>' +
-    '<div class="lede">' +
-    `<p>Eleven days lost, and home is torn into ${CHART_PIECES} pieces — each one ` +
-    'waiting on an island. Sail to whichever you can see, and decide what it is ' +
-    'worth to you when you get there.</p>' +
-    '</div>' +
-    '<ol class="manifest">' +
-    '<li><b>The Ship That Wouldn\'t Sink</b><span>and the bell keeps ringing below</span></li>' +
-    '<li><b>The Lighthouse With No Light</b><span>the door just slammed behind you</span></li>' +
-    '<li><b>The Crab Market</b><span>loud, and one crab bigger than a cart</span></li>' +
-    '<li class="last"><b>The Sleeping Giant</b><span>white cliffs, if you look twice</span></li>' +
-    '</ol>' +
+function isPaused() {
+  return !pauseEl.classList.contains('hidden')
+}
 
-    '<div class="key-groups">' +
-    '<div class="key-group">' +
-    '<h4>movement</h4>' +
-    '<div class="key"><b>W</b> speed up</div>' +
-    '<div class="key"><b>S</b> slow down</div>' +
-    '<div class="key"><b>A</b><b>D</b> steer</div>' +
-    '<div class="key"><b>Mouse</b> look</div>' +
-    '</div>' +
-    '<div class="key-group">' +
-    '<h4>actions</h4>' +
-    '<div class="key"><b>E</b> go ashore</div>' +
-    '<div class="key"><b>Esc</b> release cursor</div>' +
-    '</div>' +
-    '</div>'
-
-  chartEl.appendChild(sheet)
-
-  const go = document.createElement('button')
-  go.className = 'sail'
-  go.textContent = 'Start sailing'
-  go.addEventListener('click', () => {
-    sound.start()
-    run.sail()
-    hidePanels()
-    lock()
-  })
-  chartEl.appendChild(go)
-
-  // the intro is a page, not a popup: it stays up until Start sailing
-  chartEl.classList.remove('hidden')
+function hidePanels() {
+  chartEl.classList.add('hidden')
   draftEl.classList.add('hidden')
-  overlay.classList.add('hidden')
-  document.body.classList.remove('locked')
-  if (controls.isLocked) controls.unlock()
 }
 
 function closePanels() {
@@ -287,26 +226,118 @@ function closePanels() {
   ship.hold = false
 }
 
-function showNothingHere(island: Island) {
-  draftEl.innerHTML = ''
-  const block = document.createElement('div')
-  block.className = 'scene'
-  block.innerHTML =
-    `<h2>${island.name}</h2>` +
-    `<p>Nothing here yet. This island has no story to tell.</p>`
-  draftEl.appendChild(block)
-
-  const next = document.createElement('button')
-  next.className = 'go'
-  next.textContent = 'back to sea'
-  next.addEventListener('click', () => {
-    closePanels()
-    lock()
-  })
-  draftEl.appendChild(next)
-
-  openPanel()
+/** show these elements as the next page of the story */
+function openPanel(...content: HTMLElement[]) {
+  draftEl.replaceChildren(...content)
+  hidePause()
+  draftEl.classList.remove('hidden')
+  overlay.classList.add('hidden')
+  document.body.classList.remove('locked')
+  applyModal()
 }
+
+/**
+ * A panel of the game's own is modal: the boat is anchored, the helm does
+ * nothing and the pointer is handed back so the choice can be clicked. Browsers
+ * can refuse a pointer lock request, so the unlock is re-asserted every frame
+ * while the panel is up rather than trusted to land once.
+ */
+function applyModal() {
+  const modal = panelIsOpen()
+  ship.hold = modal
+  if (modal && controls.isLocked) controls.unlock()
+  return modal
+}
+
+// ---- opening: the situation, the islands, then cast off.
+// The intro is a page, not a popup: it stays up until Start sailing.
+function showIntro() {
+  chartEl.replaceChildren(
+    introSheet(),
+    button('sail', 'Start sailing', () => {
+      sound.start()
+      run.sail()
+    }),
+  )
+
+  chartEl.classList.remove('hidden')
+  draftEl.classList.add('hidden')
+  overlay.classList.add('hidden')
+  document.body.classList.remove('locked')
+}
+
+function backToSea() {
+  closePanels()
+  lock()
+}
+
+function showNothingHere(island: Island) {
+  openPanel(
+    sceneBlock(island.name, 'Nothing here yet. This island has no story to tell.'),
+    button('go', 'back to sea', backToSea),
+  )
+}
+
+// ---- arrival, beat one: what the island is, and what you find ashore
+function showTell(event: IslandEvent, island: Island) {
+  openPanel(
+    sceneBlock(event.title, event.telling, event.adventure),
+    button('go', 'go ashore', () => run.decide(event, island)),
+  )
+}
+
+// ---- arrival, beat two: the decision
+function showAshore(event: IslandEvent) {
+  const hand = document.createElement('div')
+  hand.className = 'choices'
+
+  for (const choice of event.choices) {
+    // a flag set on an earlier island can remove a choice entirely
+    if (choice.requires && !run.flags.has(choice.requires)) continue
+    if (choice.blockedBy && run.flags.has(choice.blockedBy)) continue
+    hand.appendChild(choiceCard(choice, () => run.resolve(choice)))
+  }
+
+  openPanel(sceneBlock(event.title, event.adventure), hand)
+}
+
+function showSunk() {
+  const block = sceneBlock(
+    'Sunk',
+    'She goes down with the map still folded on the cabin table. Whatever it ' +
+      'was about to show you, it will show nobody now. The sea closes over the boat — ' +
+      'and over you.',
+  )
+  block.appendChild(button('go', 'set sail again', () => location.reload()))
+  openPanel(block)
+}
+
+function showHome(log: string[]) {
+  openPanel(
+    sceneBlock(
+      'Home',
+      `All ${CHART_PIECES} pieces, and a crew still alive to read them. Home opens a way ` +
+        'for you that no map could have named. You are not the same boat that left it.',
+    ),
+    voyageLog(log),
+  )
+}
+
+/** the chart is complete: going home is a choice you can make from anywhere */
+function showCharted() {
+  renderBuild()
+  openPanel(
+    sceneBlock(
+      'The Whole Map',
+      `You lay the last of the ${CHART_PIECES} pieces into place and the sea finally ` +
+        'closes up into a map. Every route home is on it now — the way in, the way out, ' +
+        'and the way you came. The crew can smell land.',
+    ),
+    button('go', 'sail home', () => run.reachHome()),
+  )
+}
+
+// ---- landing
 
 /** how close you have to get before the island offers you its beach */
 const LANDING = 12
@@ -328,20 +359,18 @@ let landingTarget: Island | null = null
  * island's panel the moment they drift close.
  */
 function landOn(island: Island | null) {
-  if (!island || run.phase !== 'sailing' || panelIsOpen()) return
-  if (!pauseEl.classList.contains('hidden')) return
+  if (!island || run.phase !== 'sailing' || panelIsOpen() || isPaused()) return
 
   shownOn = island.id
   landingTarget = null
-
-  run.visited.add(island.id)
   raiseFlag(island)
 
   const event = eventFor(island.event)
   if (!event) {
-    // Never fail silently. A missing event used to drop the player straight
-    // back into open water, which is indistinguishable from nothing working.
+    // Never fail silently: a missing event would otherwise drop the player
+    // straight back into open water, which looks like nothing working.
     console.error(`no event written for island: ${island.id} (${island.event})`)
+    run.visited.add(island.id)
     showNothingHere(island)
     return
   }
@@ -349,377 +378,9 @@ function landOn(island: Island | null) {
   run.land(event, island)
 }
 
-/** throttles the bearings list, which does not need 60 rebuilds a second */
-let bearingTimer = 0
-
-/** true on frames the boat is pressing into a rock, so a bump only charges once */
-let grounded = false
-/** true on frames the hull is touching any solid, so a bump sounds only at the start */
-let wasTouching = false
-
-/**
- * What the instruments can tell you. Without a Navigator's Glass you get the one
- * bearing your own reckoning gives you, to whichever island is nearest. With
- * one, you get every island and its leg, spent ones included, because a chart
- * that remembers where you have already been is worth as much as one that
- * tells you where to go next.
- */
-function renderBearings() {
-  const glass = run.stats.lookahead > 0
-
-  const nearest = nearestUnvisited()
-  if (!glass) {
-    bearingsEl.innerHTML = ''
-    windEl.textContent = nearest
-      ? (() => {
-          const { bearing, range } = bearingAndRange(ship.position, nearest.position)
-          return `${nearest.name} ${bearing}° · ${range} m`
-        })()
-      : 'all islands found'
-    return
-  }
-
-  windEl.textContent = 'every island'
-
-  const rows = [...world.islands].sort((a, b) => {
-    const da = Math.hypot(ship.position.x - a.position.x, ship.position.z - a.position.z)
-    const db = Math.hypot(ship.position.x - b.position.x, ship.position.z - b.position.z)
-    return da - db
-  })
-
-  let html = ''
-  for (const island of rows) {
-    const { bearing, range } = bearingAndRange(ship.position, island.position)
-    const spent = run.visited.has(island.id)
-    html +=
-      `<li${spent ? ' class="spent"' : ''}>` +
-      `<span class="name"${spent ? '' : ` style="color:${islandTint(island)}"`}>` +
-      island.name +
-      `</span>` +
-      `<span class="leg">${bearing}° ${range}m</span>` +
-      `</li>`
-  }
-  bearingsEl.innerHTML = html
-}
-
-/** how many degrees of the horizon the compass shows on each side of the bow */
-const COMPASS_HALF = 130
-const CARDINALS = ['N', 'E', 'S', 'W']
-const HEADING_WORDS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-
-const compassDir = new THREE.Vector3()
-
-/** the island's hue as a CSS string, for the chart marks that carry it */
-function islandTint(island: Island) {
-  return `#${island.tint.toString(16).padStart(6, '0')}`
-}
-
-function viewHeading(): number {
-  camera.getWorldDirection(compassDir)
-  const degrees = (Math.atan2(compassDir.x, -compassDir.z) * 180) / Math.PI
-  return (degrees + 360) % 360
-}
-
-/**
- * The heading-up compass. The notch is where you are looking, so an island is
- * "steer until its mark sits under the notch". Cardinal letters and degree
- * ticks give it a fixed frame to steer against.
- */
-function renderCompass() {
-  const width = compassTape.clientWidth || 320
-  const pxPerDeg = width / (COMPASS_HALF * 2)
-  const heading = viewHeading()
-
-  const ticks: string[] = []
-  const start = Math.ceil((heading - COMPASS_HALF) / 15) * 15
-  for (let deg = start; deg < heading + COMPASS_HALF; deg += 15) {
-    const normalized = ((deg % 360) + 360) % 360
-    const major = normalized % 45 === 0
-    const cardinal = major && normalized % 90 === 0 ? CARDINALS[(normalized / 90) % 4] : ''
-    const label = cardinal || (major ? String(normalized).padStart(3, '0') : '')
-    const x = Math.round(width / 2 + (deg - heading) * pxPerDeg)
-    ticks.push(
-      `<i class="tick${major ? ' major' : ''}${cardinal ? ' cardinal' : ''}" style="left:${x}px">` +
-        (label ? `<b>${label}</b>` : '') +
-        `</i>`,
-    )
-  }
-
-  const glass = run.stats.lookahead > 0
-  const nearest = nearestUnvisited()
-  const islands = glass ? world.islands : nearest ? [nearest] : []
-
-  const marks: string[] = []
-  for (const island of islands) {
-    const { bearing, range } = bearingAndRange(ship.position, island.position)
-    const rel = ((parseFloat(bearing) - heading + 540) % 360) - 180
-    if (Math.abs(rel) > COMPASS_HALF + 5) continue
-    const x = Math.round(width / 2 + rel * pxPerDeg)
-    const spent = run.visited.has(island.id)
-    const kind = spent ? 'spent' : 'open'
-    const target = island.id === nearest?.id
-    // open islands read in their own colour; the guiding green of the nearest
-    // unvisited island and the spent dimming are louder, so they win
-    const tinted = kind === 'open' && !target
-    const style = `left:${x}px${tinted ? `;color:${islandTint(island)}` : ''}`
-    const rangeText = Math.round(parseFloat(range))
-    marks.push(
-      `<span class="island ${kind}${target ? ' target' : ''}" style="${style}">` +
-        `<em>${island.name} ${rangeText}m</em><i></i></span>`,
-    )
-  }
-
-  compassTape.innerHTML = ticks.join('') + marks.join('')
-  compassHead.textContent = `${String(Math.round(heading)).padStart(3, '0')}°`
-  compassWord.textContent = HEADING_WORDS[Math.round(heading / 45) % 8]
-}
-
-/** the closest island still holding a piece of chart */
-function nearestUnvisited(): Island | null {
-  let best: Island | null = null
-  let gap = Infinity
-  for (const island of world.islands) {
-    if (run.visited.has(island.id)) continue
-    const distance = Math.hypot(
-      ship.position.x - island.position.x,
-      ship.position.z - island.position.z,
-    )
-    if (distance < gap) {
-      gap = distance
-      best = island
-    }
-  }
-  return best
-}
-
-// ---- arrival, beat one: what the island is, and what you find ashore
-function showTell(event: IslandEvent, island: Island) {
-  draftEl.innerHTML = ''
-
-  const block = document.createElement('div')
-  block.className = 'scene'
-  block.innerHTML =
-    `<h2>${event.title}</h2>` +
-    `<p>${event.telling}</p>` +
-    `<p>${event.adventure}</p>`
-  draftEl.appendChild(block)
-
-  const next = document.createElement('button')
-  next.className = 'go'
-  next.textContent = 'go ashore'
-  next.addEventListener('click', () => run.decide(event, island))
-  draftEl.appendChild(next)
-
-  openPanel()
-}
-
-// ---- arrival, beat two: the decision
-function showAshore(event: IslandEvent) {
-  draftEl.innerHTML = ''
-
-  const block = document.createElement('div')
-  block.className = 'scene'
-  block.innerHTML = `<h2>${event.title}</h2><p>${event.adventure}</p>`
-  draftEl.appendChild(block)
-
-  const hand = document.createElement('div')
-  hand.className = 'choices'
-
-  for (const choice of event.choices) {
-    // a flag set on an earlier island can remove a choice entirely
-    if (choice.requires && !run.flags.has(choice.requires)) continue
-    if (choice.blockedBy && run.flags.has(choice.blockedBy)) continue
-
-    const button = document.createElement('button')
-    button.className = 'card'
-
-    // Every choice says what it will hand over and what it will cost, in prose
-    // and then in hard numbers, so the decision is never a guess.
-    const gains: string[] = []
-    const costs: string[] = []
-    if (choice.piece) gains.push('a piece of the map')
-    if (choice.gain) gains.push(choice.gain.name)
-    if (choice.crewDelta && choice.crewDelta > 0) gains.push(`${choice.crewDelta} crew`)
-    if (choice.passengersDelta && choice.passengersDelta > 0) gains.push(`${choice.passengersDelta} rescued`)
-    if (choice.goldDelta && choice.goldDelta > 0) gains.push(`${choice.goldDelta} gold`)
-    if (choice.provisionsDelta && choice.provisionsDelta > 0) gains.push(`${choice.provisionsDelta} food`)
-
-    if (choice.crewDelta && choice.crewDelta < 0) costs.push(`${Math.abs(choice.crewDelta)} crew`)
-    if (choice.passengersDelta && choice.passengersDelta < 0) costs.push(`${Math.abs(choice.passengersDelta)} rescued`)
-    if (choice.goldDelta && choice.goldDelta < 0) costs.push(`${Math.abs(choice.goldDelta)} gold`)
-    if (choice.provisionsDelta && choice.provisionsDelta < 0) costs.push(`${Math.abs(choice.provisionsDelta)} food`)
-    if (choice.lose) costs.push(`${cardName(choice.lose)}`)
-    if (choice.damage) costs.push(`${choice.damage} health`)
-
-    const mods = [
-      ...gains.map((g) => `<span class="gain">+ ${g}</span>`),
-      ...costs.map((c) => `<span class="cost">\u2212 ${c}</span>`),
-    ].join('')
-
-    button.innerHTML =
-      `<span class="text">${choice.text}</span>` +
-      `<span class="preview">${choice.preview}</span>` +
-      (mods ? `<span class="mods">${mods}</span>` : '')
-
-    button.addEventListener('click', () => take(choice))
-    hand.appendChild(button)
-  }
-
-  draftEl.appendChild(hand)
-  openPanel()
-}
-
-function take(choice: Choice) {
-  run.resolve(choice)
-}
-
-function showSunk() {
-  draftEl.innerHTML = ''
-  const block = document.createElement('div')
-  block.className = 'scene'
-  block.innerHTML =
-    '<h2>Sunk</h2>' +
-    '<p>She goes down with the map still folded on the cabin table. Whatever it ' +
-    'was about to show you, it will show nobody now. The sea closes over the boat — ' +
-    'and over you.</p>'
-  const retry = document.createElement('button')
-  retry.className = 'go'
-  retry.textContent = 'set sail again'
-  retry.addEventListener('click', () => location.reload())
-  block.appendChild(retry)
-  draftEl.appendChild(block)
-  openPanel()
-}
-
-function buildLog(log: string[]) {
-  const list = document.createElement('ol')
-  list.id = 'log'
-  for (const line of log) {
-    const item = document.createElement('li')
-    item.textContent = line
-    list.appendChild(item)
-  }
-  return list
-}
-
-function showHome(log: string[]) {
-  draftEl.innerHTML = ''
-  const block = document.createElement('div')
-  block.className = 'scene'
-  block.innerHTML =
-    '<h2>Home</h2>' +
-    `<p>All ${CHART_PIECES} pieces, and a crew still alive to read them. Home opens a way ` +
-    'for you that no map could have named. You are not the same boat that left it.</p>'
-  draftEl.appendChild(block)
-  draftEl.appendChild(buildLog(log))
-  openPanel()
-}
-
-/** the chart is complete: going home is a choice you can make from anywhere */
-function showCharted() {
-  draftEl.innerHTML = ''
-  const block = document.createElement('div')
-  block.className = 'scene'
-  block.innerHTML =
-    '<h2>The Whole Map</h2>' +
-    `<p>You lay the last of the ${CHART_PIECES} pieces into place and the sea finally ` +
-    'closes up into a map. Every route home is on it now — the way in, the way out, ' +
-    'and the way you came. The crew can smell land.</p>'
-  draftEl.appendChild(block)
-
-  const home = document.createElement('button')
-  home.className = 'go'
-  home.textContent = 'sail home'
-  home.addEventListener('click', () => run.reachHome())
-  draftEl.appendChild(home)
-  openPanel()
-}
-
-function openPanel() {
-  hidePause()
-  draftEl.classList.remove('hidden')
-  overlay.classList.add('hidden')
-  document.body.classList.remove('locked')
-  applyModal()
-}
-
-renderBuild()
-
-/**
- * Hand the cursor back to the player. Browsers reject a pointer lock request
- * issued in the same tick as exitPointerLock, so wait for the document to
- * actually report unlocked before asking again.
- */
-function lock() {
-  document.body.classList.add('locked')
-
-  const request = () => {
-    if (controls.isLocked) return
-    const result = canvas.requestPointerLock() as Promise<void> | undefined
-    if (result && typeof result.catch === 'function') {
-      result.catch(() => window.setTimeout(request, 120))
-    }
-  }
-
-  if (document.pointerLockElement) window.setTimeout(request, 120)
-  else request()
-}
-
-controls.addEventListener('lock', () => {
-  hidePause()
-  overlay.classList.add('hidden')
-  document.body.classList.add('locked')
-})
-controls.addEventListener('unlock', () => {
-  document.body.classList.remove('locked')
-  if (run.phase === 'sailing' && !panelIsOpen()) showPause()
-})
-
-resumeEl.addEventListener('click', () => {
-  sound.start()
-  hidePause()
-  lock()
-})
-
-// E — or clicking the prompt — is what puts you ashore. Sailing close to an
-// island only ever offers it.
-window.addEventListener('keydown', (event) => {
-  if (event.code !== 'KeyE' && event.key.toLowerCase() !== 'e') return
-  landOn(landingTarget)
-})
-
-// Esc while the menu is up puts you straight back on the tiller
-window.addEventListener('keydown', (event) => {
-  if (event.code !== 'Escape') return
-  if (pauseEl.classList.contains('hidden')) return
-  event.preventDefault()
-  sound.start()
-  hidePause()
-  lock()
-})
-
 // ---- pause: Esc releases the pointer, and releasing the pointer opens this.
 // A panel of the game's own also releases it, so only treat it as a pause when
 // nothing else has the screen.
-function panelIsOpen() {
-  return (
-    !chartEl.classList.contains('hidden') || !draftEl.classList.contains('hidden')
-  )
-}
-
-/**
- * A panel of the game's own is modal: the boat is anchored, the helm does
- * nothing and the pointer is handed back so the choice can be clicked. Browsers
- * can refuse a pointer lock request, so the unlock is re-asserted every frame
- * while the panel is up rather than trusted to land once.
- */
-function applyModal() {
-  const modal = panelIsOpen()
-  ship.hold = modal
-  if (modal && controls.isLocked) controls.unlock()
-  return modal
-}
-
 function showPause() {
   const visited = run.visited.size
   const unvisited = world.islands.length - visited
@@ -737,6 +398,144 @@ function hidePause() {
   pauseEl.classList.add('hidden')
 }
 
+function resume() {
+  sound.start()
+  hidePause()
+  lock()
+}
+
+/**
+ * Hand the cursor back to the player. Browsers reject a pointer lock request
+ * issued in the same tick as exitPointerLock, so wait for the document to
+ * actually report unlocked before asking again.
+ */
+function lock() {
+  document.body.classList.add('locked')
+
+  const request = () => {
+    if (controls.isLocked) return
+    const result = canvas.requestPointerLock() as Promise<void> | undefined
+    result?.catch(() => window.setTimeout(request, 120))
+  }
+
+  if (document.pointerLockElement) window.setTimeout(request, 120)
+  else request()
+}
+
+controls.addEventListener('lock', () => {
+  hidePause()
+  overlay.classList.add('hidden')
+  document.body.classList.add('locked')
+})
+controls.addEventListener('unlock', () => {
+  document.body.classList.remove('locked')
+  if (run.phase === 'sailing' && !panelIsOpen()) showPause()
+})
+
+$('#resume').addEventListener('click', resume)
+landEl.addEventListener('click', () => landOn(landingTarget))
+
+window.addEventListener('keydown', (event) => {
+  // E — or clicking the prompt — is what puts you ashore. Sailing close to an
+  // island only ever offers it.
+  if (event.code === 'KeyE' || event.key.toLowerCase() === 'e') {
+    landOn(landingTarget)
+  }
+  // Esc while the menu is up puts you straight back on the tiller
+  else if (event.code === 'Escape' && isPaused()) {
+    event.preventDefault()
+    resume()
+  }
+})
+
+// ---- instruments
+
+/** with a Navigator's Glass the instruments show every island, not just the nearest */
+function hasGlass() {
+  return run.stats.lookahead > 0
+}
+
+/** the closest island still holding a piece of chart */
+function nearestUnvisited(): Island | null {
+  let best: Island | null = null
+  let gap = Infinity
+  for (const island of world.islands) {
+    if (run.visited.has(island.id)) continue
+    const distance = flatDistance(ship.position, island.position)
+    if (distance < gap) {
+      gap = distance
+      best = island
+    }
+  }
+  return best
+}
+
+/**
+ * What the instruments can tell you. Without a Navigator's Glass you get the one
+ * bearing your own reckoning gives you, to whichever island is nearest. With
+ * one, you get every island and its leg, spent ones included, because a chart
+ * that remembers where you have already been is worth as much as one that
+ * tells you where to go next.
+ */
+function renderBearings() {
+  if (!hasGlass()) {
+    const nearest = nearestUnvisited()
+    bearingsEl.innerHTML = ''
+    if (nearest) {
+      const { bearing, range } = bearingAndRange(ship.position, nearest.position)
+      windEl.textContent = `${nearest.name} ${bearing}° · ${range} m`
+    } else {
+      windEl.textContent = 'all islands found'
+    }
+    return
+  }
+
+  windEl.textContent = 'every island'
+
+  const byDistance = [...world.islands].sort(
+    (a, b) => flatDistance(ship.position, a.position) - flatDistance(ship.position, b.position),
+  )
+
+  bearingsEl.innerHTML = byDistance
+    .map((island) => {
+      const { bearing, range } = bearingAndRange(ship.position, island.position)
+      const spent = run.visited.has(island.id)
+      return (
+        `<li${spent ? ' class="spent"' : ''}>` +
+        `<span class="name"${spent ? '' : ` style="color:${tintCss(island)}"`}>${island.name}</span>` +
+        `<span class="leg">${bearing}° ${range}m</span>` +
+        `</li>`
+      )
+    })
+    .join('')
+}
+
+const lookDirection = new THREE.Vector3()
+
+/** which way the camera is looking, as a compass heading in degrees */
+function viewHeading(): number {
+  camera.getWorldDirection(lookDirection)
+  const degrees = (Math.atan2(lookDirection.x, -lookDirection.z) * 180) / Math.PI
+  return (degrees + 360) % 360
+}
+
+function updateCompass() {
+  const nearest = nearestUnvisited()
+  const islands = hasGlass() ? world.islands : nearest ? [nearest] : []
+
+  const marks: CompassMark[] = islands.map((island) => ({
+    name: island.name,
+    ...bearingAndRange(ship.position, island.position),
+    spent: run.visited.has(island.id),
+    target: island.id === nearest?.id,
+    tint: tintCss(island),
+  }))
+
+  renderCompass(compass, viewHeading(), marks)
+}
+
+renderBuild()
+
 // ----------------------------------------------------------------------- loop
 function resize() {
   const width = window.innerWidth
@@ -749,6 +548,13 @@ function resize() {
 window.addEventListener('resize', resize)
 resize()
 
+/** true on frames the boat is pressing into a rock, so a bump only charges once */
+let grounded = false
+/** true on frames the hull is touching any solid, so a bump sounds only at the start */
+let wasTouching = false
+/** throttles the bearings list, which does not need 60 rebuilds a second */
+let bearingTimer = 0
+
 let previous = performance.now()
 
 function animate() {
@@ -758,107 +564,125 @@ function animate() {
   const elapsed = now / 1000
 
   controls.update(delta)
-
-  uTime.value = elapsed
-  // the sea closes in the longer you're out there
-  const choppy = choppyForIslands(run.pieces.size)
-  uChoppy.value = choppy
-  waves.time = elapsed
-  waves.choppy = choppy
-
-  // the sea bed follows the same swell that the shader renders
-  const rough = Math.max(0, Math.min(1, (choppy - BASE_CHOPPY) / 2.7))
-  sound.tick(rough, ship.speed, !pauseEl.classList.contains('hidden'))
-
-  // the boat carves her own wake into the raymarched sea
-  const sailSpeed = Math.max(0, ship.speed - 0.5)
-  uShipPos.value = new THREE.Vector2(ship.position.x, ship.position.z)
-  uShipDir.value = new THREE.Vector2(ship.facing.x, ship.facing.z)
-  uShipSpeed.value = sailSpeed
-  waves.shipX = ship.position.x
-  waves.shipZ = ship.position.z
-  waves.shipDirX = ship.facing.x
-  waves.shipDirZ = ship.facing.z
-  waves.shipSpeed = sailSpeed
+  updateSea(elapsed)
 
   // no throttle and no steering unless you are actually sailing and holding
   // the tiller. Without the isLocked check, W drives the boat from the pause menu.
   const sailing = run.phase === 'sailing' && controls.isLocked
+  steerShip(delta, elapsed, sailing)
+  collide(delta)
+  floatIslands(delta, elapsed)
+  offerLanding(sailing)
 
+  if (!ship.alive && run.phase !== 'dead') run.sink()
+
+  updateHud(delta)
+
+  renderer.render(scene, camera)
+  requestAnimationFrame(animate)
+}
+
+/** keep the shader and its CPU mirror on the same sea, and the sound on top of it */
+function updateSea(elapsed: number) {
+  // the sea closes in the more of the map you hold
+  const choppy = choppyForPieces(run.pieces.size)
+  uTime.value = elapsed
+  uChoppy.value = choppy
+  waves.time = elapsed
+  waves.choppy = choppy
+
+  const rough = Math.max(0, Math.min(1, (choppy - BASE_CHOPPY) / MAX_EXTRA_CHOP))
+  sound.tick(rough, ship.speed, isPaused())
+
+  // the boat carves her own wake into the raymarched sea
+  const wakeSpeed = Math.max(0, ship.speed - 0.5)
+  uShipPos.value.set(ship.position.x, ship.position.z)
+  uShipDir.value.set(ship.facing.x, ship.facing.z)
+  uShipSpeed.value = wakeSpeed
+  waves.shipX = ship.position.x
+  waves.shipZ = ship.position.z
+  waves.shipDirX = ship.facing.x
+  waves.shipDirZ = ship.facing.z
+  waves.shipSpeed = wakeSpeed
+}
+
+function steerShip(delta: number, elapsed: number, sailing: boolean) {
   const modal = applyModal()
-  compassEl.classList.toggle('hidden', !(sailing && !modal))
-  ship.update(
-    delta,
-    waves,
-    sailing && !modal ? controls.throttle : 0,
-    sailing && !modal ? controls.rudder : 0,
-  )
+  const atHelm = sailing && !modal
+  compassEl.classList.toggle('hidden', !atHelm)
+  ship.update(delta, waves, atHelm ? controls.throttle : 0, atHelm ? controls.rudder : 0)
 
   // becalmed, the wind sets you down and you can do nothing about it. A wreck
   // is past all of that: the tide takes her, not the wind.
   if (!sailing && run.phase !== 'dead') {
-    const push = driftForIslands(run.pieces.size)
+    const push = driftForPieces(run.pieces.size)
     ship.position.x += Math.sin(elapsed * 0.21) * push * delta
     ship.position.z += Math.cos(elapsed * 0.17) * push * delta
   }
+}
 
-  // ---- cannon-es answers what the boat touched this frame. She still sails
-  // by the hand-rolled kinematics; physics just keeps her out of the rocks and
-  // slides her along the shores instead of sailing through them.
-  const hits = physics.step(
-    delta,
-    ship.position.x,
-    ship.position.y,
-    ship.position.z,
-    ship.velocity.x,
-    ship.velocity.z,
-  )
+/**
+ * cannon-es answers what the boat touched this frame. She still sails by the
+ * hand-rolled kinematics; physics just keeps her out of the rocks and slides
+ * her along the shores instead of sailing through them.
+ */
+function collide(delta: number) {
+  const hits = physics.step(delta, ship.position, ship.velocity)
 
   // once she is gone she is gone: no shoving, no grinding, no damage. The wreck
-  // just lists over and goes under, so the death screen is not a heaving pile
-  // of wreckage still fighting the rocks.
-  if (ship.alive) {
-    let grinding = false
-    let fastestHit = 0
-    let touching = false
-    let hardestContact = 0
-    for (const hit of hits) {
-      // push her back out of whatever she is biting into, plus a hair of slack
-      ship.position.x += hit.nx * (hit.depth + 0.4)
-      ship.position.z += hit.nz * (hit.depth + 0.4)
+  // just lists over and goes under.
+  if (!ship.alive) return
 
-      touching = true
-      if (hit.speed > hardestContact) hardestContact = hit.speed
-      if (hit.kind !== 'rock') continue
+  let touching = false
+  let grinding = false
+  let hardestContact = 0
+  let fastestRockHit = 0
+  for (const hit of hits) {
+    // push her back out of whatever she is biting into, plus a hair of slack
+    ship.position.x += hit.nx * (hit.depth + 0.4)
+    ship.position.z += hit.nz * (hit.depth + 0.4)
+
+    touching = true
+    hardestContact = Math.max(hardestContact, hit.speed)
+    if (hit.kind === 'rock') {
       grinding = true
-      if (hit.speed > fastestHit) fastestHit = hit.speed
-    }
-
-    // the hull-slam sounds on first contact and not again until she is clear
-    if (touching && !wasTouching) {
-      const clearDeck = pauseEl.classList.contains('hidden') && !panelIsOpen()
-      if (clearDeck) sound.bump(hardestContact)
-    }
-    wasTouching = touching
-
-    // A bump costs a visible chunk of the hull, charged once per grinding
-    // episode. Calling damage() every frame drip-feeds the readout with a
-    // fraction a human cannot see; one charge per contact is a hit you feel.
-    if (grinding && !grounded) {
-      const clearDeck = pauseEl.classList.contains('hidden') && !panelIsOpen()
-      if (clearDeck) ship.damage(8 + Math.max(0, fastestHit - 1) * 0.8)
-    }
-    grounded = grinding
-
-    if (grinding && !flash.classList.contains('on')) {
-      flash.classList.remove('on')
-      void flash.offsetWidth
-      flash.classList.add('on')
+      fastestRockHit = Math.max(fastestRockHit, hit.speed)
     }
   }
 
-  // ---- islands ride the water: heave on the swell, and lean into its slope
-  // the way a hull does, but slower, because land is heavier than a boat
+  // nothing hurts or sounds while a menu or a panel has the screen
+  const clearDeck = !isPaused() && !panelIsOpen()
+
+  // the hull-slam sounds on first contact and not again until she is clear
+  if (touching && !wasTouching && clearDeck) sound.bump(hardestContact)
+  wasTouching = touching
+
+  // A bump costs a visible chunk of the hull, charged once per grinding
+  // episode. Calling damage() every frame drip-feeds the readout with a
+  // fraction a human cannot see; one charge per contact is a hit you feel.
+  if (grinding && !grounded) {
+    if (clearDeck) ship.damage(8 + Math.max(0, fastestRockHit - 1) * 0.8)
+    flashDamage()
+  }
+  grounded = grinding
+}
+
+/** restart the red vignette's CSS animation */
+function flashDamage() {
+  damageFlash.classList.remove('on')
+  void damageFlash.offsetWidth // force a reflow, or the browser skips the restart
+  damageFlash.classList.add('on')
+}
+
+/**
+ * Islands ride the water: heave on the swell, and lean into its slope the way a
+ * hull does, but slower, because land is heavier than a boat. Rocks just sit on it.
+ */
+function floatIslands(delta: number, elapsed: number) {
+  // a beat behind the water: land heaves, it does not snap
+  const follow = 1 - Math.min(1, 1.6 * delta)
+  const lean = 2.2
+
   for (const island of world.islands) {
     const { x, z } = island.position
     const reach = island.radius * 0.7
@@ -869,11 +693,7 @@ function animate() {
     const north = waves.height(x, z - reach)
     const south = waves.height(x, z + reach)
 
-    // a beat behind the water: land heaves, it does not snap
-    const follow = 1 - Math.min(1, 1.6 * delta)
     const ride = island.ride
-    const lean = 2.2
-
     ride.height += (centre - ride.height) * follow
     ride.pitch += (Math.atan2(north - south, reach * 2) * lean - ride.pitch) * follow
     ride.roll += (Math.atan2(east - west, reach * 2) * lean - ride.roll) * follow
@@ -885,39 +705,36 @@ function animate() {
     // the flag is the only thing on these islands that moves on its own, which
     // is what makes it readable as a signal from a distance
     if (island.flag) {
-      const gust = elapsed * 2.3 + island.position.x * 0.05
+      const gust = elapsed * 2.3 + x * 0.05
       island.flag.rotation.z = Math.sin(gust) * 0.14
       island.flag.rotation.y = Math.sin(gust * 0.7) * 0.5
     }
   }
 
-  // ---- rock: cannon-es handles the grinding damage, all that is left here is
-  // to seat each outcrop on the water so it looks like it belongs
   for (const hazard of world.hazards) {
-    const y = waves.height(hazard.position.x, hazard.position.z)
-    hazard.mesh.position.set(hazard.position.x, y, hazard.position.z)
+    const { x, z } = hazard.position
+    hazard.mesh.position.set(x, waves.height(x, z), z)
   }
+}
 
-  // ---- arrival: no destination was ever chosen, so you simply arrive
-  // wherever you happen to have sailed into. Landing is an offer, not a trap:
-  // coast within sight of the beach and the game asks; it never grabs you.
+/**
+ * No destination was ever chosen, so you simply arrive wherever you happen to
+ * have sailed. Landing is an offer, not a trap: coast within sight of the beach
+ * and the game asks; it never grabs you.
+ */
+function offerLanding(sailing: boolean) {
   let offered: Island | null = null
   let offeredGap = Infinity
   for (const island of world.islands) {
-    const dx = ship.position.x - island.position.x
-    const dz = ship.position.z - island.position.z
-    const distance = Math.hypot(dx, dz)
+    const distance = flatDistance(ship.position, island.position)
 
     // forget an island once you are well clear of it, so you can come back
     if (shownOn === island.id && distance > island.radius + LANDING * 6) shownOn = null
 
-    if (!sailing) continue
+    if (!sailing || shownOn === island.id) continue
+    // a spent island cannot be landed on again
+    if (run.visited.has(island.id)) continue
     if (distance > island.radius + LANDING) continue
-    if (shownOn === island.id) continue
-
-    // A spent island cannot be landed on again.
-    const spent = run.visited.has(island.id)
-    if (spent) continue
 
     if (distance < offeredGap) {
       offeredGap = distance
@@ -926,34 +743,24 @@ function animate() {
   }
   landingTarget = offered
 
-  if (landingTarget && sailing && !panelIsOpen()) landEl.classList.remove('hidden')
-  else landEl.classList.add('hidden')
+  landEl.classList.toggle('hidden', !(landingTarget && sailing && !panelIsOpen()))
+}
 
-  if (ship.hp <= 0 && run.phase !== 'dead') {
-    run.phase = 'dead'
-    showSunk()
-  }
-
-  // ---- hud
+function updateHud(delta: number) {
   healthFill.style.width = `${ship.health * 100}%`
   healthFill.style.backgroundColor = ship.health < 0.35 ? '#ff6a4d' : '#7fd4a1'
   healthNum.textContent = String(Math.round(ship.hp))
-  readouts.textContent = `${(ship.speed * 1.2).toFixed(1)} knots`
+  speedEl.textContent = `${(ship.speed * 1.2).toFixed(1)} knots`
   piecesEl.textContent = `${run.pieces.size}/${CHART_PIECES}`
 
-  // ---- the instruments: one bearing by dead reckoning, the whole set with a
-  // glass. Throttled, because rewriting the list every frame is pointless.
+  // rewriting the list every frame is pointless, so a few times a second will do
   bearingTimer += delta
   if (bearingTimer > 0.2) {
     bearingTimer = 0
     renderBearings()
   }
-  if (!compassEl.classList.contains('hidden')) renderCompass()
-
-  renderer.render(scene, camera)
-  requestAnimationFrame(animate)
+  if (!compassEl.classList.contains('hidden')) updateCompass()
 }
 
-run.phase = 'intro'
 showIntro()
 animate()

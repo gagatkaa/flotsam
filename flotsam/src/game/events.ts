@@ -1,19 +1,9 @@
-import { CARDS } from './cards'
+import { cardById } from './cards'
 import type { IslandEvent } from './run'
 
-function byId(id: string) {
-  const card = CARDS.find((c) => c.id === id)
-
-  if (!card) {
-    throw new Error(`event references unknown card: ${ id } `)
-  }
-
-  return card
-}
-
-export const EVENTS: Record<string, IslandEvent> = {
+/** the story on each island, keyed by the island's `event` id */
+const EVENTS: Record<string, IslandEvent> = {
   wreck: {
-    island: 'wreck',
     title: 'The Ship That Wouldn’t Sink',
 
     telling:
@@ -33,7 +23,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You rescue the sailor and find a hidden box of black powder. The escape costs you 8 health, but you gain 1 crew member.',
 
         piece: 'wreck',
-        gain: byId('blackpowder'),
+        gain: cardById('blackpowder'),
         damage: 8,
         crewDelta: 1,
       },
@@ -48,7 +38,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You recover a heavy keel beam, but one crew member is trapped when the wreck collapses. You lose 12 health and 1 crew member.',
 
         piece: 'wreck',
-        gain: byId('keel'),
+        gain: cardById('keel'),
         damage: 12,
         crewDelta: -1,
       },
@@ -63,13 +53,12 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You gain spare rigging and leave without taking any damage.',
 
         piece: 'wreck',
-        gain: byId('rigging'),
+        gain: cardById('rigging'),
       },
     ],
   },
 
   gallows: {
-    island: 'gallows',
     title: 'The Lighthouse With No Light',
 
     telling:
@@ -89,7 +78,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You escape with the chart and gain the Navigator’s Glass.',
 
         piece: 'gallows',
-        gain: byId('glass'),
+        gain: cardById('glass'),
       },
 
       {
@@ -102,7 +91,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You salvage parts from the lighthouse and upgrade your helm.',
 
         piece: 'gallows',
-        gain: byId('helm'),
+        gain: cardById('helm'),
       },
 
       {
@@ -115,14 +104,13 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You gain black powder and leave with a very uncomfortable mystery.',
 
         piece: 'gallows',
-        gain: byId('blackpowder'),
+        gain: cardById('blackpowder'),
         sets: 'opened-the-box',
       },
     ],
   },
 
   kitchen: {
-    island: 'kitchen',
     title: 'The Crab Market',
 
     telling:
@@ -142,7 +130,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You spend 5 provisions, gain hull plating, and take 2 passengers aboard.',
 
         piece: 'kitchen',
-        gain: byId('plating'),
+        gain: cardById('plating'),
         provisionsDelta: -5,
         passengersDelta: 2,
       },
@@ -157,7 +145,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'The villagers reward you with spare pumps and enough food for several days. You gain 4 provisions.',
 
         piece: 'kitchen',
-        gain: byId('pumps'),
+        gain: cardById('pumps'),
         provisionsDelta: 4,
       },
 
@@ -177,7 +165,6 @@ export const EVENTS: Record<string, IslandEvent> = {
   },
 
   bones: {
-    island: 'bones',
     title: 'The Sleeping Giant',
 
     telling:
@@ -197,7 +184,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You take the chart without disturbing the shrine and gain a helm upgrade.',
 
         piece: 'bones',
-        gain: byId('helm'),
+        gain: cardById('helm'),
       },
 
       {
@@ -210,7 +197,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You reinforce the ship with a giant rib, but the dangerous work costs you 12 health.',
 
         piece: 'bones',
-        gain: byId('tight-fit'),
+        gain: cardById('tight-fit'),
         damage: 12,
       },
 
@@ -231,6 +218,7 @@ export const EVENTS: Record<string, IslandEvent> = {
   },
 }
 
+/** the story written for an island, or undefined if it has none yet */
 export function eventFor(id: string): IslandEvent | undefined {
   return EVENTS[id]
 }

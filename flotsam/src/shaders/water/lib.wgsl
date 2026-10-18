@@ -21,22 +21,7 @@ const SEA_BASE: vec3f = vec3f( 0.0, 0.09, 0.18 );
 // valid const expression everywhere
 const SEA_WATER_COLOR: vec3f = vec3f( 0.48, 0.54, 0.36 );
 
-// math
-fn fromEuler( ang: vec3f ) -> mat3x3f {
-
-	let a1 = vec2f( sin( ang.x ), cos( ang.x ) );
-	let a2 = vec2f( sin( ang.y ), cos( ang.y ) );
-	let a3 = vec2f( sin( ang.z ), cos( ang.z ) );
-
-	var m: mat3x3f;
-	m[ 0 ] = vec3f( a1.y * a3.y + a1.x * a2.x * a3.x, a1.y * a2.x * a3.x + a3.y * a1.x, - a2.y * a3.x );
-	m[ 1 ] = vec3f( - a2.y * a1.x, a1.y * a2.y, a2.x );
-	m[ 2 ] = vec3f( a3.y * a1.x * a2.x + a1.y * a3.x, a1.x * a3.x - a1.y * a3.y * a2.x, a2.y * a3.y );
-
-	return m;
-
-}
-
+// noise
 fn hash( p: vec2f ) -> f32 {
 
 	let h = dot( p, vec2f( 127.1, 311.7 ) );
@@ -135,7 +120,9 @@ fn wake( p: vec3f, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 
 }
 
-fn map( p: vec3f, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
+// height of the sea above p, negative below the surface. `iterations` octaves:
+// ITER_GEOMETRY while raymarching, the finer ITER_FRAGMENT for the normals.
+fn map( p: vec3f, iterations: i32, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 
 	var freq = SEA_FREQ;
 	var amp = SEA_HEIGHT;
@@ -146,7 +133,7 @@ fn map( p: vec3f, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, sh
 
 	var h: f32 = 0.0;
 
-	for ( var i = 0; i < ITER_GEOMETRY; i ++ ) {
+	for ( var i = 0; i < iterations; i ++ ) {
 
 		let d = sea_octave( ( uv + seaTime ) * freq, choppy )
 			+ sea_octave( ( uv - seaTime ) * freq, choppy );
@@ -155,41 +142,7 @@ fn map( p: vec3f, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, sh
 
 		// GLSL `uv *= octave_m` is a row-vector times matrix product, which WGSL has no
 		// operator for, so the octave rotation is spelled out per component
-		let rotated = vec2f( uv.x * 1.6 + uv.y * 1.2, uv.x * - 1.2 + uv.y * 1.6 );
-		uv = rotated;
-
-		freq *= 1.9;
-		amp *= 0.22;
-		choppy = mix( choppy, 1.0, 0.2 );
-
-	}
-
-	return p.y - h - wake( p, shipPos, shipDir, shipSpeed );
-
-}
-
-fn map_detailed( p: vec3f, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
-
-	var freq = SEA_FREQ;
-	var amp = SEA_HEIGHT;
-	var choppy = choppy0;
-
-	var uv = p.xz;
-	uv.x *= 0.75;
-
-	var h: f32 = 0.0;
-
-	for ( var i = 0; i < ITER_FRAGMENT; i ++ ) {
-
-		let d = sea_octave( ( uv + seaTime ) * freq, choppy )
-			+ sea_octave( ( uv - seaTime ) * freq, choppy );
-
-		h += d * amp;
-
-		// GLSL `uv *= octave_m` is a row-vector times matrix product, which WGSL has no
-		// operator for, so the octave rotation is spelled out per component
-		let rotated = vec2f( uv.x * 1.6 + uv.y * 1.2, uv.x * - 1.2 + uv.y * 1.6 );
-		uv = rotated;
+		uv = vec2f( uv.x * 1.6 + uv.y * 1.2, uv.x * - 1.2 + uv.y * 1.6 );
 
 		freq *= 1.9;
 		amp *= 0.22;
@@ -223,34 +176,32 @@ fn getSeaColor( p: vec3f, n: vec3f, l: vec3f, eye: vec3f, dist: vec3f ) -> vec3f
 // tracing
 fn getNormal( p: vec3f, eps: f32, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec3f {
 
-    var n: vec3f;
-    n.y = map_detailed( p, seaTime, choppy0, shipPos, shipDir, shipSpeed );
-    n.x = map_detailed( vec3f( p.x + eps, p.y, p.z ), seaTime, choppy0, shipPos, shipDir, shipSpeed ) - n.y;
-    n.z = map_detailed( vec3f( p.x, p.y, p.z + eps ), seaTime, choppy0, shipPos, shipDir, shipSpeed ) - n.y;
-	n.y = eps;
+	let h = map( p, ITER_FRAGMENT, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+	let hx = map( vec3f( p.x + eps, p.y, p.z ), ITER_FRAGMENT, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+	let hz = map( vec3f( p.x, p.y, p.z + eps ), ITER_FRAGMENT, seaTime, choppy0, shipPos, shipDir, shipSpeed );
 
-	return normalize( n );
+	return normalize( vec3f( hx - h, eps, hz - h ) );
 
 }
 
 // returns vec4f( distance along ray, hit position )
 fn heightMapTracing( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec4f {
 
-    var tm: f32 = 0.0;
-    var tx: f32 = 1000.0;
+	var tm: f32 = 0.0;
+	var tx: f32 = 1000.0;
 
-    var hx = map( ori + dir * tx, seaTime, choppy0, shipPos, shipDir, shipSpeed );
-    if ( hx > 0.0 ) {
-        return vec4f( tx, ori + dir * tx );
-    }
+	var hx = map( ori + dir * tx, ITER_GEOMETRY, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+	if ( hx > 0.0 ) {
+		return vec4f( tx, ori + dir * tx );
+	}
 
-    var hm = map( ori, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+	var hm = map( ori, ITER_GEOMETRY, seaTime, choppy0, shipPos, shipDir, shipSpeed );
 
-    for ( var i = 0; i < NUM_STEPS; i ++ ) {
+	for ( var i = 0; i < NUM_STEPS; i ++ ) {
 
-        let tmid = mix( tm, tx, hm / ( hm - hx ) );
-        let p = ori + dir * tmid;
-        let hmid = map( p, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+		let tmid = mix( tm, tx, hm / ( hm - hx ) );
+		let p = ori + dir * tmid;
+		let hmid = map( p, ITER_GEOMETRY, seaTime, choppy0, shipPos, shipDir, shipSpeed );
 
 		if ( hmid < 0.0 ) {
 			tx = tmid;
@@ -275,11 +226,11 @@ fn heightMapTracing( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, shipPos
 // `dir` replaces the shadertoy's built-in fly camera, `ori` is the real camera position.
 fn getPixel( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, epsScale: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec3f {
 
-    let hit = heightMapTracing( ori, dir, seaTime, choppy0, shipPos, shipDir, shipSpeed );
-    let p = hit.yzw;
-    let dist = p - ori;
+	let hit = heightMapTracing( ori, dir, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+	let p = hit.yzw;
+	let dist = p - ori;
 
-    let n = getNormal( p, dot( dist, dist ) * epsScale, seaTime, choppy0, shipPos, shipDir, shipSpeed );
+	let n = getNormal( p, dot( dist, dist ) * epsScale, seaTime, choppy0, shipPos, shipDir, shipSpeed );
 	let l = normalize( vec3f( 0.0, 1.0, 0.8 ) );
 
 	return mix(
