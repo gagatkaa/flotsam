@@ -15,8 +15,8 @@ ported from GLSL to WGSL and rendered with three.js `WebGPURenderer`.
 
 - **Four islands, four map pieces.** A wreck that won't sink, a lighthouse with no light, a crab
   market and the bones of a giant. Each one has its own story and several ways to deal with it.
-- **Every choice costs something.** Health, crew, food or gold, and you always see the price before
-  you pick. Some choices only appear because of what you did on another island.
+- **Choices have a price.** Most cost health, crew, food or gold, and you always see what you get and
+  what you pay before you pick. Some choices only appear because of what you did on another island.
 - **Wreckage among the rocks.** Crates of food, barrels of coin and planks to patch the hull float
   between the islands, right next to the rocks that will tear your hull open.
 - **The crew gets hungry.** Food runs down while you sail, and a hungry crew sails slowly and breaks
