@@ -55,9 +55,24 @@ function boxOf(model: THREE.Object3D, meshName?: string) {
 /** the boat's length from bow to stern, in metres: the handling was tuned around it */
 const BOAT_LENGTH = 4.2
 
+/** the most forward point of the hull, in the boat's own space: the tip of the bow */
+function bowTip(boat: THREE.Object3D) {
+  boat.updateMatrixWorld(true)
+  const hull = boat.getObjectByName('Rowboat_Hull') as THREE.Mesh
+  const positions = hull.geometry.attributes.position
+  const point = new THREE.Vector3()
+  const tip = new THREE.Vector3(0, 0, Infinity)
+  for (let i = 0; i < positions.count; i++) {
+    point.fromBufferAttribute(positions, i).applyMatrix4(hull.matrixWorld)
+    if (point.z < tip.z) tip.copy(point)
+  }
+  return tip
+}
+
 /**
  * The rowboat, scaled to length, pointing its bow down -Z, with the middle of
- * its hull on the origin so it sits in the water at the deck's height.
+ * its hull on the origin so it sits in the water at the deck's height. Also
+ * returns where the tip of the bow ends up, so the camera can line up with it.
  */
 export async function loadBoat(onMaterial: (material: THREE.MeshStandardNodeMaterial) => void) {
   const model = await loader.loadAsync(boatUrl)
@@ -72,7 +87,7 @@ export async function loadBoat(onMaterial: (material: THREE.MeshStandardNodeMate
   // centre on the hull, not the whole model: the mast would pull her under
   const hull = boxOf(boat, 'Rowboat_Hull').getCenter(new THREE.Vector3())
   boat.position.sub(hull)
-  return boat
+  return { boat, bow: bowTip(boat) }
 }
 
 /**

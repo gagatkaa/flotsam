@@ -30,14 +30,14 @@ const HEEL = 0.19
 const REST_HELM = 0.25
 
 /**
- * Where the player's eyes are: at the bow, on the centreline, looking out over
- * the water. The sail runs from the top of the mast down to the bow, so any
- * spot between the mast and the bow is inside it; this is just in front of its
- * leading edge. A negative distance aft means forward of the middle.
+ * Where the player's eyes are: just in front of the mast (which stands about
+ * 0.77 m forward of the middle, with the sail behind it), low enough to look
+ * out over the open foredeck and the bow. A negative distance aft means
+ * forward of the middle. Sideways, the camera lines up with the tip of the bow
+ * once the model has loaded, so the bow points straight ahead.
  */
-const CAMERA_SIDE = 0
-const CAMERA_HEIGHT = 1.05
-const CAMERA_AFT = -1.85
+const CAMERA_HEIGHT = 0.85
+const CAMERA_AFT = -0.9
 
 /**
  * The rowboat model (boat.fbx, made in Blender) riding the CPU mirror of the shader's wave
@@ -79,14 +79,17 @@ export class Ship {
     this.hp = stats.hull
     this.rig.add(this.deck)
     this.deck.add(this.cameraMount)
-    this.cameraMount.position.set(CAMERA_SIDE, CAMERA_HEIGHT, CAMERA_AFT)
+    this.cameraMount.position.set(0, CAMERA_HEIGHT, CAMERA_AFT)
 
     // handling is live from the first frame; the mesh appears a beat later.
     // Every material is remembered so a hit can flash the whole boat red.
     const remember = (material: THREE.MeshStandardNodeMaterial) =>
       this.tints.push({ material, base: material.color.clone() })
     loadBoat(remember)
-      .then((model) => this.deck.add(model))
+      .then(({ boat, bow }) => {
+        this.deck.add(boat)
+        this.cameraMount.position.x = bow.x
+      })
       .catch((err) => console.warn('could not load boat.fbx', err))
   }
 
