@@ -166,28 +166,45 @@ Two design rules keep this tidy:
 
 - `src/shaders/water/lib.wgsl`: constants and helper functions (noise, wave octaves, the wake, sky
   colour, sea colour, the raymarch).
-- `src/shaders/water/fragment.wgsl`: the entry function `seascape(dir, ori, resolution, time,
-  choppy, shipPos, shipDir, shipSpeed)` that returns a colour.
+- `src/shaders/water/fragment.wgsl`: the entry function `seascape(rayDir, rayOrigin, iResolution,
+  iTime, choppy, shipPos, shipDir, shipSpeed)` that returns a colour.
 
 ### How it gets into three.js
 
-In `main.ts`:
+This follows the "Shadertoy shader in Three.js" approach from the course. In `main.ts`:
 
 ```ts
 const seascape = wgslFn(seascapeEntry, [wgsl(seascapeHelpers)])
-scene.backgroundNode = vec4(
-  seascape(normalize(positionWorld), cameraPosition, screenSize, uTime, uChoppy, uShipPos, uShipDir, uShipSpeed),
-  1,
-)
+
+const seaColor = seascape({
+  rayDir: normalize(positionWorld),
+  rayOrigin: cameraPosition,
+  iResolution: screenSize,
+  iTime: uTime,
+  choppy: uChoppy,
+  shipPos: uShipPos,
+  shipDir: uShipDir,
+  shipSpeed: uShipSpeed,
+})
+
+scene.backgroundNode = colorSpaceToWorking(vec4(seaColor, 1), THREE.SRGBColorSpace)
 ```
 
 - Vite's `?raw` import gives us the two `.wgsl` files as strings.
-- `wgsl(helpers)` adds the helper code to the shader module, and `wgslFn(entry, ...)` turns the entry
-  function into a TSL node we can call with other nodes as arguments.
+- `wgslFn(entry, ...)` reads the signature of the entry function and turns it into a function we can
+  call. `wgsl(helpers)` adds the helper functions it uses to the same shader module.
+- The call uses **named arguments**: each property name must match a parameter name in the WGSL
+  function. The values are TSL nodes: built-in ones like `positionWorld` and `cameraPosition`, or
+  `uniform()` nodes we update every frame.
 - `scene.backgroundNode` is drawn by three.js on a big sphere around the camera. Because that sphere
   moves with the camera, `normalize(positionWorld)` is the direction this pixel looks in: the **view
   ray**. `cameraPosition` is where the ray starts. So the shader draws the ocean from wherever the
   game camera is.
+- **Colour space:** like every Shadertoy shader, Seascape outputs colours that are already ready for
+  the screen (sRGB). three.js lights the boat and islands in a linear colour space and converts the
+  whole image to sRGB at the end. Without `colorSpaceToWorking(..., SRGBColorSpace)` that conversion
+  would be applied to the sea a second time and wash it out to a pale blue. We can't switch the
+  conversion off for the whole renderer, because the lit objects need it.
 
 ### What the shader does per pixel
 
