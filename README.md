@@ -44,8 +44,8 @@ position, heading and speed, which carve a wake into the waves, and a "choppines
 the sea rougher as you collect map pieces. The wave maths is mirrored on the CPU so the boat, the
 islands and the wreckage float on the same surface you see.
 
-Collisions with islands and rocks are detected with cannon-es. More detail, including how the shader
-was ported, is in [`flotsam/README.md`](flotsam/README.md).
+Collisions with islands and rocks are detected with cannon-es. A full walkthrough of how everything
+is built and connected, including how the shader was ported, is in [`flotsam/EXPLANATION.md`](flotsam/EXPLANATION.md).
 
 ## Run it locally
 
