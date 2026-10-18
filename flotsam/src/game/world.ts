@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu'
 import { BASE_CHOPPY } from '../objects/WaveField'
+import { scatterFlotsam, type Flotsam } from './flotsam'
 
 export interface Hazard {
   position: THREE.Vector3
@@ -20,6 +21,8 @@ export interface Island {
   group: THREE.Group
   /** the cloth on the flag pole, raised once you have been here, so the loop can wave it */
   flag: THREE.Object3D | null
+  /** the glowing column over an island you have not landed on yet */
+  beacon: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicNodeMaterial> | null
   /**
    * Where the island is riding this frame, smoothed across frames by the loop.
    * Heavy land does not snap to the water like a hull does: it heaves and leans
@@ -31,6 +34,7 @@ export interface Island {
 export interface World {
   islands: Island[]
   hazards: Hazard[]
+  flotsam: Flotsam[]
 }
 
 /** mulberry32, so a seed always lays out the same islands */
@@ -164,6 +168,23 @@ function makeIslandBody(random: () => number, radius: number, tint: number) {
   return group
 }
 
+/**
+ * A tall, soft column of light over an island still holding a piece of the
+ * map, so it can be picked out on the horizon. It ignores the fog on purpose.
+ */
+function makeBeacon(tint: number) {
+  const color = new THREE.Color(0xffd27a).lerp(new THREE.Color(tint), 0.25)
+  const material = new THREE.MeshBasicNodeMaterial({
+    color,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    fog: false,
+  })
+  return new THREE.Mesh(new THREE.CylinderGeometry(1.2, 2.6, 90, 16, 1, true), material)
+}
+
 /** two or three boulders huddled together */
 function makeRock(radius: number, random: () => number) {
   const group = new THREE.Group()
@@ -250,6 +271,8 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
 
     const group = makeIslandBody(random, radius, spec.tint)
     group.name = spec.id
+    // kept out of the island group, so it stands upright while the land rocks
+    const beacon = makeBeacon(spec.tint)
 
     islands.push({
       id: spec.id,
@@ -260,6 +283,7 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
       radius,
       group,
       flag: null,
+      beacon,
       ride: { height: 0, pitch: 0, roll: 0 },
     })
   })
@@ -290,7 +314,7 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
     })
   }
 
-  return { islands, hazards }
+  return { islands, hazards, flotsam: scatterFlotsam(islands, hazards, random) }
 }
 
 /**
@@ -300,6 +324,9 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
  */
 export function raiseFlag(island: Island) {
   if (island.flag) return
+
+  island.beacon?.removeFromParent()
+  island.beacon = null
 
   const timber = new THREE.MeshStandardNodeMaterial({ color: 0x53442f, roughness: 0.9 })
   const cloth = new THREE.MeshStandardNodeMaterial({

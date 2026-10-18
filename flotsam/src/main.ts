@@ -38,10 +38,13 @@ import {
   type Island,
 } from './game/world'
 import { eventFor } from './game/events'
+import { PICKUP_RANGE } from './game/flotsam'
+import { recordBest, scoreVoyage } from './game/score'
 import { Run, type IslandEvent } from './game/run'
 import { describe } from './game/stats'
 import { renderCompass, type CompassMark } from './ui/compass'
-import { button, choiceCard, introSheet, sceneBlock, voyageLog } from './ui/story'
+import { button, choiceCard, introSheet, scoreSheet, sceneBlock, voyageLog } from './ui/story'
+import { announceChanges, toast, type Tally } from './ui/toasts'
 
 // ----------------------------------------------------------------------- map
 // One pass top to bottom:
@@ -51,7 +54,7 @@ import { button, choiceCard, introSheet, sceneBlock, voyageLog } from './ui/stor
 //   4. lighting + world    sun, sky, the islands and the rocks
 //   5. the hud             the reading panels, the pause menu, the compass
 //   6. the loop            every frame: shader uniforms -> sail -> physics
-//                          -> islands/rocks -> landing -> hud
+//                          -> islands/rocks/flotsam -> pickups -> landing -> hud
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!
 
@@ -120,9 +123,9 @@ const run = new Run({
     renderBuild()
     showHome(log)
   },
-  onSunk() {
+  onSunk(log) {
     renderBuild()
-    showSunk()
+    showSunk(log)
   },
 })
 
@@ -153,12 +156,14 @@ const physics = new Physics()
 const world = buildWorld()
 for (const island of world.islands) {
   scene.add(island.group)
+  if (island.beacon) scene.add(island.beacon)
   physics.island(island.position.x, island.position.z, island.radius)
 }
 for (const hazard of world.hazards) {
   scene.add(hazard.mesh)
   physics.rock(hazard.position.x, hazard.position.z, hazard.radius)
 }
+for (const item of world.flotsam) scene.add(item.mesh)
 
 // --------------------------------------------------------------------- the hud
 const overlay = $<HTMLDivElement>('#overlay')
@@ -179,6 +184,7 @@ const loadPassEl = $<HTMLSpanElement>('#load-pass')
 const loadGoldEl = $<HTMLSpanElement>('#load-gold')
 const loadFoodEl = $<HTMLSpanElement>('#load-food')
 const landEl = $<HTMLButtonElement>('#land')
+const toastsEl = $<HTMLDivElement>('#toasts')
 const compassEl = $<HTMLDivElement>('#compass')
 const compass = {
   tape: $<HTMLDivElement>('#compass-tape'),
@@ -295,31 +301,52 @@ function showAshore(event: IslandEvent) {
     // a flag set on an earlier island can remove a choice entirely
     if (choice.requires && !run.flags.has(choice.requires)) continue
     if (choice.blockedBy && run.flags.has(choice.blockedBy)) continue
-    hand.appendChild(choiceCard(choice, () => run.resolve(choice)))
+    hand.appendChild(choiceCard(choice, run.canAfford(choice), () => run.resolve(choice)))
   }
 
   openPanel(sceneBlock(event.title, event.adventure), hand)
 }
 
-function showSunk() {
-  const block = sceneBlock(
+/** the score for the voyage as it stands, recorded against the best so far */
+function finalTally(home: boolean) {
+  const score = scoreVoyage({
+    home,
+    pieces: run.pieces.size,
+    crew: run.crew,
+    passengers: run.passengers,
+    gold: run.gold,
+    provisions: run.provisions,
+    hull: ship.hp,
+    seconds: run.sailTime,
+  })
+  return scoreSheet(score, recordBest(score.total))
+}
+
+/** the last page of the story: what happened, the score, and the way back to the start */
+function showEnding(home: boolean, title: string, text: string, log: string[]) {
+  const block = sceneBlock(title, text)
+  block.append(finalTally(home), button('go', 'set sail again', () => location.reload()))
+  openPanel(block, ...(log.length ? [voyageLog(log)] : []))
+}
+
+function showSunk(log: string[]) {
+  showEnding(
+    false,
     'Sunk',
     'She goes down with the map still folded on the cabin table. Whatever it ' +
       'was about to show you, it will show nobody now. The sea closes over the boat — ' +
       'and over you.',
+    log,
   )
-  block.appendChild(button('go', 'set sail again', () => location.reload()))
-  openPanel(block)
 }
 
 function showHome(log: string[]) {
-  openPanel(
-    sceneBlock(
-      'Home',
-      `All ${CHART_PIECES} pieces, and a crew still alive to read them. Home opens a way ` +
-        'for you that no map could have named. You are not the same boat that left it.',
-    ),
-    voyageLog(log),
+  showEnding(
+    true,
+    'Home',
+    `All ${CHART_PIECES} pieces, and a crew still alive to read them. Home opens a way ` +
+      'for you that no map could have named. You are not the same boat that left it.',
+    log,
   )
 }
 
@@ -554,6 +581,12 @@ let grounded = false
 let wasTouching = false
 /** throttles the bearings list, which does not need 60 rebuilds a second */
 let bearingTimer = 0
+/** seconds at the helm since the crew last ate */
+let hungerClock = 0
+/** how often the crew eats a day's food, in seconds at the helm */
+const MEAL_INTERVAL = 20
+/** the numbers on screen last frame, so every change can be announced */
+let tally = readTally()
 
 let previous = performance.now()
 
@@ -572,6 +605,7 @@ function animate() {
   steerShip(delta, elapsed, sailing)
   collide(delta)
   floatIslands(delta, elapsed)
+  collectFlotsam(sailing)
   offerLanding(sailing)
 
   if (!ship.alive && run.phase !== 'dead') run.sink()
@@ -611,6 +645,7 @@ function steerShip(delta: number, elapsed: number, sailing: boolean) {
   const atHelm = sailing && !modal
   compassEl.classList.toggle('hidden', !atHelm)
   ship.update(delta, waves, atHelm ? controls.throttle : 0, atHelm ? controls.rudder : 0)
+  if (atHelm) passTime(delta)
 
   // becalmed, the wind sets you down and you can do nothing about it. A wreck
   // is past all of that: the tide takes her, not the wind.
@@ -619,6 +654,21 @@ function steerShip(delta: number, elapsed: number, sailing: boolean) {
     ship.position.x += Math.sin(elapsed * 0.21) * push * delta
     ship.position.z += Math.cos(elapsed * 0.17) * push * delta
   }
+}
+
+/** the clock runs while you sail: the score counts it, and the crew gets hungry */
+function passTime(delta: number) {
+  run.sailTime += delta
+  hungerClock += delta
+  if (hungerClock < MEAL_INTERVAL) return
+
+  hungerClock = 0
+  if (run.provisions === 0) return
+  run.eat()
+  // a short commons slows the crew down, so the boat needs the new numbers
+  ship.applyStats(run.stats)
+  if (run.provisions === 2) toast(toastsEl, 'Food is running low', 'info')
+  if (run.provisions === 0) toast(toastsEl, 'The larder is empty. The crew grows weak', 'cost')
 }
 
 /**
@@ -702,6 +752,12 @@ function floatIslands(delta: number, elapsed: number) {
     island.group.rotation.x = ride.pitch
     island.group.rotation.z = ride.roll
 
+    // the beacon breathes, so the eye catches it on the horizon
+    if (island.beacon) {
+      island.beacon.position.set(x, ride.height + 44, z)
+      island.beacon.material.opacity = 0.24 + Math.sin(elapsed * 1.6 + x * 0.1) * 0.08
+    }
+
     // the flag is the only thing on these islands that moves on its own, which
     // is what makes it readable as a signal from a distance
     if (island.flag) {
@@ -714,6 +770,32 @@ function floatIslands(delta: number, elapsed: number) {
   for (const hazard of world.hazards) {
     const { x, z } = hazard.position
     hazard.mesh.position.set(x, waves.height(x, z), z)
+  }
+
+  // wreckage turns slowly and rocks on the swell
+  for (const item of world.flotsam) {
+    if (item.collected) continue
+    const { x, z } = item.position
+    item.mesh.position.set(x, waves.height(x, z) + 0.15, z)
+    item.mesh.rotation.y += item.spin * delta
+    item.mesh.rotation.x = Math.sin(elapsed * 1.3 + x) * 0.15
+  }
+}
+
+/** sail into floating wreckage to haul it aboard */
+function collectFlotsam(sailing: boolean) {
+  if (!sailing || !ship.alive) return
+
+  for (const item of world.flotsam) {
+    if (item.collected || flatDistance(ship.position, item.position) > PICKUP_RANGE) continue
+
+    item.collected = true
+    item.mesh.removeFromParent()
+    run.addCargo(item.loot.provisions, item.loot.gold)
+    ship.repair(item.loot.repair ?? 0)
+    // food and gold both change how she handles
+    ship.applyStats(run.stats)
+    toast(toastsEl, `Picked up ${item.loot.label}`, 'info')
   }
 }
 
@@ -746,7 +828,23 @@ function offerLanding(sailing: boolean) {
   landEl.classList.toggle('hidden', !(landingTarget && sailing && !panelIsOpen()))
 }
 
+/** the numbers the pop-up messages watch */
+function readTally(): Tally {
+  return {
+    health: Math.round(ship.hp),
+    pieces: run.pieces.size,
+    crew: run.crew,
+    rescued: run.passengers,
+    gold: run.gold,
+    food: run.provisions,
+  }
+}
+
 function updateHud(delta: number) {
+  const now = readTally()
+  if (announceChanges(toastsEl, tally, now)) renderBuild()
+  tally = now
+
   healthFill.style.width = `${ship.health * 100}%`
   healthFill.style.backgroundColor = ship.health < 0.35 ? '#ff6a4d' : '#7fd4a1'
   healthNum.textContent = String(Math.round(ship.hp))

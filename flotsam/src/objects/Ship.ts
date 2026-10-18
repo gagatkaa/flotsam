@@ -125,6 +125,12 @@ export class Ship {
     this.hp = stats.hull * health
   }
 
+  /** patch the hull, never past what it can hold */
+  repair(amount: number) {
+    if (this.sinking) return
+    this.hp = Math.min(this.stats.hull, this.hp + amount)
+  }
+
   damage(amount: number) {
     if (this.sinking) return
     this.hp -= amount * this.stats.frailty

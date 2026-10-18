@@ -79,6 +79,8 @@ export class Run {
   passengers = STARTING_LOAD.passengers
   gold = STARTING_LOAD.gold
   provisions = STARTING_LOAD.provisions
+  /** seconds spent at the helm, for the closing score */
+  sailTime = 0
 
   private readonly events: RunEvents
 
@@ -93,6 +95,24 @@ export class Run {
       gold: this.gold,
       provisions: this.provisions,
     })
+  }
+
+  /** whether you hold enough gold and food to pay what a choice asks */
+  canAfford(choice: Choice) {
+    return this.gold >= -(choice.goldDelta ?? 0) && this.provisions >= -(choice.provisionsDelta ?? 0)
+  }
+
+  /** stow something fished out of the water */
+  addCargo(provisions = 0, gold = 0) {
+    this.provisions += provisions
+    this.gold += gold
+  }
+
+  /** the crew eats a day's food. Returns false if there was nothing left to eat */
+  eat() {
+    if (this.provisions === 0) return false
+    this.provisions--
+    return true
   }
 
   /** how many copies of each card are in the deck */
@@ -135,6 +155,9 @@ export class Run {
 
   /** the player took an option: apply it, then cast off */
   resolve(choice: Choice) {
+    // only one choice per landing, and only one you can pay for
+    if (this.phase !== 'ashore' || !this.canAfford(choice)) return
+
     this.log.push(choice.outcome)
 
     if (choice.gain && !this.deck.includes(choice.gain)) this.deck.push(choice.gain)

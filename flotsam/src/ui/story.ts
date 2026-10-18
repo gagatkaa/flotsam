@@ -4,6 +4,7 @@
 
 import { cardName } from '../game/cards'
 import type { Choice } from '../game/run'
+import type { Score } from '../game/score'
 import { CHART_PIECES, ISLAND_SPECS } from '../game/world'
 
 /** the opening page: the situation, the islands, then the keys */
@@ -23,6 +24,8 @@ export function introSheet() {
       <p>Eleven days lost, and home is torn into ${CHART_PIECES} pieces — each one
       waiting on an island. Sail to whichever you can see, and decide what it is
       worth to you when you get there.</p>
+      <p>Scoop up what floats between the islands, and watch the larder: the
+      crew eats as you sail.</p>
     </div>
     <ol class="manifest">${islands}</ol>
     <div class="key-groups">
@@ -72,7 +75,7 @@ const DELTAS = [
  * what it will cost, in prose and then in hard numbers, so the decision is
  * never a guess.
  */
-export function choiceCard(choice: Choice, onPick: () => void) {
+export function choiceCard(choice: Choice, affordable: boolean, onPick: () => void) {
   const gains: string[] = []
   const costs: string[] = []
 
@@ -90,12 +93,17 @@ export function choiceCard(choice: Choice, onPick: () => void) {
   if (choice.lose) costs.push(cardName(choice.lose))
   if (choice.damage) costs.push(`${choice.damage} health`)
 
-  const mods = [
+  let mods = [
     ...gains.map((gain) => `<span class="gain">+ ${gain}</span>`),
     ...costs.map((cost) => `<span class="cost">− ${cost}</span>`),
   ].join('')
 
   const card = button('card', '', onPick)
+  // a choice you cannot pay for stays on the table, so you can see what you are missing
+  if (!affordable) {
+    card.disabled = true
+    mods += '<span class="cost">not enough to pay</span>'
+  }
   card.innerHTML =
     `<span class="text">${choice.text}</span>` +
     `<span class="preview">${choice.preview}</span>` +
@@ -113,4 +121,20 @@ export function voyageLog(log: string[]) {
     list.appendChild(item)
   }
   return list
+}
+
+/** the closing tally: a rating, the points, and where they came from */
+export function scoreSheet(score: Score, best: { best: number; isNew: boolean }) {
+  const lines = score.lines
+    .map((line) => `<li><span>${line.label}</span><b>${line.value}</b><i>+${line.points}</i></li>`)
+    .join('')
+
+  const sheet = document.createElement('div')
+  sheet.className = 'tally'
+  sheet.innerHTML =
+    `<div class="rating">${score.rating}</div>` +
+    `<div class="total"><b>${score.total}</b> points</div>` +
+    `<div class="best">${best.isNew ? 'a new best' : `best ${best.best}`}</div>` +
+    `<ul>${lines}</ul>`
+  return sheet
 }

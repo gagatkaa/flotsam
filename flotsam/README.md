@@ -29,6 +29,14 @@ your timber; grind against the rocks too long and the sea takes you.
 - **The Sleeping Giant** — the island is the bones of something enormous, with a shrine in its rib
   cage. Take the chart and the helm upgrade, cut a rib for your hull, or find the castaway in the skull.
 
+Between the islands, wreckage floats on the swell: crates of food, barrels of coin and loose planks
+to patch the hull. Sail into them to haul them aboard. The crew eats a day's food every 20 seconds at
+sea, and a hungry crew sails slowly and breaks things. Coin buys help at the Crab Market, and what you
+do on one island can open a new choice on another. A glowing beacon stands over every island you
+have not landed on yet.
+
+When the voyage ends, at home or on the bottom, you get a score and a title for the run.
+
 Four islands, four chart pieces. The whole chart is a map home: there is no homeward island to find —
 finish the map and you can sail for port whenever you like.
 
@@ -125,10 +133,13 @@ flotsam/
     │   └── fragment.wgsl        entry function called from TSL
     ├── ui/
     │   ├── compass.ts           the heading-up compass tape
-    │   └── story.ts             builders for the intro, island scenes and choice cards
+    │   ├── story.ts             builders for the intro, island scenes, choice cards and score
+    │   └── toasts.ts            pop-up messages for everything that changes
     └── game/
         ├── world.ts             island layout, rocks, flags, bearings
         ├── events.ts            the story on each island and its choices
+        ├── flotsam.ts           floating wreckage to pick up between the islands
+        ├── score.ts             the closing score, rating and best score
         ├── cards.ts             the upgrades a choice can give you
         ├── run.ts               the run state machine: sail, land, choose, sink or go home
         └── stats.ts             turns upgrades and cargo into the boat's handling numbers

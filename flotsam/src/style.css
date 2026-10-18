@@ -1261,3 +1261,150 @@ body {
     display: none;
   }
 }
+/* ------------------------------------------------------------------ toasts */
+/* what just changed, slid in at the right edge and gone again in a moment */
+#toasts {
+  position: fixed;
+  top: clamp(58px, 9vh, 90px);
+  right: max(18px, env(safe-area-inset-right, 0px));
+  z-index: 6;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 7px 14px;
+  border: 1px solid rgba(239, 231, 214, 0.18);
+  border-radius: var(--r-pill);
+  background: rgba(6, 20, 30, 0.82);
+  backdrop-filter: blur(6px);
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+  animation: toast 2800ms ease forwards;
+}
+
+.toast.gain {
+  border-color: rgba(127, 212, 161, 0.5);
+  color: #9fe4ba;
+}
+
+.toast.cost {
+  border-color: rgba(255, 106, 77, 0.5);
+  color: #ff9a85;
+}
+
+.toast.info {
+  border-color: rgba(216, 178, 94, 0.55);
+  color: var(--brass);
+}
+
+@keyframes toast {
+  0% {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  8%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* -------------------------------------------------------- unaffordable choice */
+.card:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+@media (hover: hover) {
+  .card:disabled:hover {
+    transform: none;
+    border-color: var(--paper-edge);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* ------------------------------------------------------------- the tally */
+/* the closing score, set into the last page of the story */
+#draft .scene .tally {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: min(100%, 420px);
+  margin-top: 4px;
+  padding-top: var(--stack-gap);
+  border-top: 1px solid var(--paper-edge);
+  color: var(--charcoal);
+}
+
+
+.tally .rating {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: var(--fs-strong);
+  color: var(--brass-deep);
+}
+
+.tally .total {
+  font-family: var(--sans);
+  font-size: var(--fs-label);
+  letter-spacing: 0.06em;
+  color: rgba(43, 36, 23, 0.7);
+}
+
+.tally .total b {
+  font-family: var(--serif);
+  font-size: var(--fs-title);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: 0;
+  color: var(--charcoal);
+}
+
+.tally .best {
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(43, 36, 23, 0.55);
+}
+
+.tally ul {
+  display: grid;
+  width: 100%;
+  margin: var(--stack-gap) 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--sans);
+  font-size: var(--fs-mods);
+}
+
+.tally li {
+  display: grid;
+  grid-template-columns: 1fr auto 4.5em;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px dotted var(--paper-edge);
+}
+
+.tally li b {
+  font-weight: 500;
+  color: var(--charcoal);
+}
+
+.tally li i {
+  font-style: normal;
+  text-align: right;
+  color: #1c5c38;
+}
