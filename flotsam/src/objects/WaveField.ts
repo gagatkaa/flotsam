@@ -60,14 +60,16 @@ function wake(x: number, z: number, sx: number, sz: number, dx: number, dz: numb
   // calm the water right under the hull
   const hull = Math.exp(-dist * dist * 0.1)
 
-  // ramp the wake in over the bow and out over the stern, so there is no crease at along = 0
-  const behind = smoothstep(0, 0.8, -along)
-  const ahead = smoothstep(0, 0.8, along)
+  // metres astern and ahead, and a soft hand-over between the two across the beam:
+  // each part of the wake lives only on its own side and dies away with distance
+  const behind = Math.max(-along, 0)
+  const ahead = Math.max(along, 0)
+  const astern = smoothstep(-0.8, 0.8, -along)
 
-  const trench = -0.4 * v * Math.exp(-behind * 0.16) * Math.exp(-across * across * 0.08)
-  const bow = 0.3 * v * Math.exp(-ahead * 0.2) * Math.exp(-across * across * 0.1)
+  const trench = -0.4 * v * astern * Math.exp(-behind * 0.16) * Math.exp(-across * across * 0.08)
+  const bow = 0.3 * v * (1 - astern) * Math.exp(-ahead * 0.2) * Math.exp(-across * across * 0.1)
   const chevron =
-    0.16 * v * Math.sin(behind * 1.7 - Math.abs(across) * 2.4) * Math.exp(-behind * 0.06) * Math.exp(-Math.abs(across) * 0.22)
+    0.16 * v * astern * Math.sin(behind * 1.7 - Math.abs(across) * 2.4) * Math.exp(-behind * 0.06) * Math.exp(-Math.abs(across) * 0.22)
 
   return (trench + bow + chevron) * (1 - hull * 0.85)
 }

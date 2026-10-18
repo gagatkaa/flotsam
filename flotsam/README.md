@@ -29,7 +29,7 @@ your timber; grind against the rocks too long and the sea takes you.
 - **The Sleeping Giant** — the island is the bones of something enormous, with a shrine in its rib
   cage. Take the chart and the helm upgrade, cut a rib for your hull, or find the castaway in the skull.
 
-Between the islands, wreckage floats on the swell: crates of food, barrels of coin and loose planks
+In among the rocks between the islands, wreckage floats on the swell: crates of food, barrels of coin and loose planks
 to patch the hull. Sail into them to haul them aboard. The crew eats a day's food every 20 seconds at
 sea, and a hungry crew sails slowly and breaks things. Coin buys help at the Crab Market, and what you
 do on one island can open a new choice on another. A glowing beacon stands over every island you

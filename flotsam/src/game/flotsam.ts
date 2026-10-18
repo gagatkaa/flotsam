@@ -29,20 +29,30 @@ export const PICKUP_RANGE = 3.4
 
 const COUNT = 28
 
+/** how far from a rock wreckage settles: inside the reef, but clear of the stone */
+const REEF_GAP = { min: 4, max: 13 }
+
 /**
- * Scatter wreckage over the open water between the islands, clear of the
- * beaches and the rocks, so every crossing has something worth steering for.
+ * Scatter wreckage in the gaps between the rocks on the crossings between
+ * the islands, so picking it up means threading the reef on the way to the
+ * next landing. It never sits on a beach or inside a rock.
  */
 export function scatterFlotsam(islands: Island[], hazards: Hazard[], random: () => number): Flotsam[] {
   const flotsam: Flotsam[] = []
+  if (hazards.length === 0) return flotsam
 
-  for (let attempt = 0; attempt < COUNT * 10 && flotsam.length < COUNT; attempt++) {
+  for (let attempt = 0; attempt < COUNT * 15 && flotsam.length < COUNT; attempt++) {
+    const rock = hazards[Math.floor(random() * hazards.length)]
     const angle = random() * Math.PI * 2
-    const distance = 40 + random() * 220
-    const position = new THREE.Vector3(Math.sin(angle) * distance, 0, Math.cos(angle) * distance)
+    const gap = rock.radius + REEF_GAP.min + random() * (REEF_GAP.max - REEF_GAP.min)
+    const position = new THREE.Vector3(
+      rock.position.x + Math.sin(angle) * gap,
+      0,
+      rock.position.z + Math.cos(angle) * gap,
+    )
 
     const nearLand = islands.some((island) => position.distanceTo(island.position) < island.radius + 16)
-    const nearRock = hazards.some((hazard) => position.distanceTo(hazard.position) < hazard.radius + 5)
+    const nearRock = hazards.some((hazard) => position.distanceTo(hazard.position) < hazard.radius + REEF_GAP.min)
     if (nearLand || nearRock) continue
 
     const roll = random()

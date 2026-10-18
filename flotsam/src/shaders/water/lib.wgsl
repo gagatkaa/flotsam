@@ -100,20 +100,21 @@ fn wake( p: vec3f, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 	// of the camera's eye line.
 	let hull = exp( - dist * dist * 0.10 );
 
-	// ramp the wake in over the bow and out over the stern instead of starting
-	// it at full strength at along=0 — the hard start turned the seam into a
-	// visible fold in the water a step ahead of the hull.
-	let behind = smoothstep( 0.0, 0.8, - along );
-	let ahead = smoothstep( 0.0, 0.8, along );
+	// metres astern and ahead of the hull, and a soft hand-over between the two
+	// across the beam. Each part of the wake lives only on its own side and
+	// dies away with distance; without both, it ran as a thin line to the horizon.
+	let behind = max( - along, 0.0 );
+	let ahead = max( along, 0.0 );
+	let astern = smoothstep( - 0.8, 0.8, - along );
 
 	// a rolling trench astern that wakes with speed and dies with distance
-	let trench = - 0.4 * v * exp( - behind * 0.16 ) * exp( - across * across * 0.08 );
+	let trench = - 0.4 * v * astern * exp( - behind * 0.16 ) * exp( - across * across * 0.08 );
 
 	// the bow piles water up ahead of her, a swell that shoves the seas apart
-	let bow = 0.3 * v * exp( - ahead * 0.2 ) * exp( - across * across * 0.1 );
+	let bow = 0.3 * v * ( 1.0 - astern ) * exp( - ahead * 0.2 ) * exp( - across * across * 0.1 );
 
 	// chevrons: standing waves shed off the transom and spreading behind
-	let chevron = 0.16 * v * sin( behind * 1.7 - abs( across ) * 2.4 )
+	let chevron = 0.16 * v * astern * sin( behind * 1.7 - abs( across ) * 2.4 )
 		* exp( - behind * 0.06 ) * exp( - abs( across ) * 0.22 );
 
 	return ( trench + bow + chevron ) * ( 1.0 - hull * 0.85 );
