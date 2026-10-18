@@ -825,6 +825,7 @@ function collectFlotsam(sailing: boolean) {
     // food and gold both change how she handles
     ship.applyStats(run.stats)
     toast(toastsEl, `Picked up ${item.loot.label}`, 'info')
+    sound.pickup('chest')
   }
 }
 
@@ -873,6 +874,7 @@ function readTally(): Tally {
 
 function updateHud(delta: number) {
   const now = readTally()
+  if (now.pieces > tally.pieces) sound.pickup('map')
   if (announceChanges(toastsEl, tally, now)) renderBuild()
   tally = now
 

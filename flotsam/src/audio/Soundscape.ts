@@ -1,5 +1,10 @@
 import seaUrl from '../sounds/sea_sounds.wav?url'
 import hitUrl from '../sounds/boat_hit.wav?url'
+import chestUrl from '../sounds/chest-pickup.mp3?url'
+import mapUrl from '../sounds/map-pickup.mp3?url'
+
+/** the one-shot sounds for picking things up */
+export type Pickup = 'chest' | 'map'
 
 /** the audio graph, created on the first user gesture */
 interface Mixer {
@@ -23,12 +28,14 @@ interface Mixer {
  * in src/sounds; the boat "swimming" is a thin synthesized water-churn whose
  * colour follows her speed, because there is no file for that layer; and
  * bumping into things replays src/sounds/boat_hit.wav, harder the faster she
- * hits. All gains are ramped with setTargetAtTime, so nothing zips.
+ * hits. Hauling wreckage aboard and finding a map piece each have a clip of
+ * their own. All gains are ramped with setTargetAtTime, so nothing zips.
  */
 export class Soundscape {
   private mixer: Mixer | null = null
   private hitBuffer: AudioBuffer | null = null
   private hitSource: AudioBufferSourceNode | null = null
+  private pickupBuffers: Partial<Record<Pickup, AudioBuffer>> = {}
   /** true once the clips have loaded and the sea is playing */
   private ready = false
 
@@ -100,10 +107,32 @@ export class Soundscape {
     this.hitSource = source
   }
 
+  /** play the sound for picking something up, over the top of everything else */
+  pickup(kind: Pickup) {
+    const buffer = this.pickupBuffers[kind]
+    if (!this.mixer || !buffer) return
+    const { ctx, master } = this.mixer
+
+    const source = ctx.createBufferSource()
+    source.buffer = buffer
+    const gain = ctx.createGain()
+    gain.gain.value = 0.8
+    source.connect(gain)
+    gain.connect(master)
+    source.onended = () => gain.disconnect()
+    source.start()
+  }
+
   private async loadClips({ ctx, seaGain }: Mixer) {
     try {
-      const [seaBuffer, hitBuffer] = await Promise.all([loadClip(ctx, seaUrl), loadClip(ctx, hitUrl)])
+      const [seaBuffer, hitBuffer, chest, map] = await Promise.all([
+        loadClip(ctx, seaUrl),
+        loadClip(ctx, hitUrl),
+        loadClip(ctx, chestUrl),
+        loadClip(ctx, mapUrl),
+      ])
       this.hitBuffer = hitBuffer
+      this.pickupBuffers = { chest, map }
 
       const sea = ctx.createBufferSource()
       sea.buffer = seaBuffer
