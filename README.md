@@ -55,7 +55,8 @@ npm install
 npm run dev
 ```
 
-Built with three.js (WebGPU + TSL), cannon-es, TypeScript and Vite.
+Built with three.js (WebGPU + TSL), cannon-es, TypeScript and Vite. The boat and the islands are
+low-poly models we made in Blender.
 
 ## Credits
 

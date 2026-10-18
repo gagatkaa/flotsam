@@ -1,14 +1,10 @@
 import * as THREE from 'three/webgpu'
-import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
-import boatUrl from './BoatModel.FBX?url'
+import { loadBoat } from './models'
 import type { WaveField } from './WaveField'
 import type { Stats } from '../game/stats'
 
+/** half the hull's length: how far fore and aft she feels the waves */
 const HULL_LENGTH = 1.6
-/** the FBX is authored in cm; fit her to the length the handling was tuned around */
-const MODEL_LENGTH = 4.2
-/** wood tone multiplied over the model's own material colours */
-const HULL_COLOR = 0x6b4a2f
 const HIT_COLOR = new THREE.Color(0xff5533)
 
 /**
@@ -34,7 +30,15 @@ const HEEL = 0.19
 const REST_HELM = 0.25
 
 /**
- * The boat model (BoatModel.FBX) riding the CPU mirror of the shader's wave
+ * Where the player's eyes are: above the deck, back from the mast towards the
+ * stern, and a little to starboard so the mast does not split the view.
+ */
+const CAMERA_SIDE = 0.55
+const CAMERA_HEIGHT = 1.1
+const CAMERA_AFT = 1.2
+
+/**
+ * The rowboat model (boat.fbx, made in Blender) riding the CPU mirror of the shader's wave
  * field. Every handling number comes from the player's Stats, so whatever an
  * island gives you is just a change to that object.
  */
@@ -73,40 +77,15 @@ export class Ship {
     this.hp = stats.hull
     this.rig.add(this.deck)
     this.deck.add(this.cameraMount)
-    this.cameraMount.position.set(0, 1.05, -0.2)
+    this.cameraMount.position.set(CAMERA_SIDE, CAMERA_HEIGHT, CAMERA_AFT)
 
-    // handling is live from the first frame; the mesh appears a beat later
-    new FBXLoader().load(boatUrl, (model) => {
-      // she was authored stern-forward, so swing her round to point at -Z
-      model.rotation.y = Math.PI
-
-      const box = new THREE.Box3().setFromObject(model)
-      const size = box.getSize(new THREE.Vector3())
-      model.scale.setScalar(MODEL_LENGTH / Math.max(size.x, size.z))
-
-      const fitted = new THREE.Box3().setFromObject(model)
-      const centre = fitted.getCenter(new THREE.Vector3())
-      model.position.sub(centre)
-
-      const hull = new THREE.Color(HULL_COLOR)
-      model.traverse((child) => {
-        if (!(child instanceof THREE.Mesh)) return
-        const sources = Array.isArray(child.material) ? child.material : [child.material]
-        const materials = sources.map((source) => {
-          const material = new THREE.MeshStandardNodeMaterial({
-            color: hull.clone().multiply((source as THREE.MeshPhongMaterial).color),
-            roughness: 0.7,
-          })
-          this.tints.push({ material, base: material.color.clone() })
-          return material
-        })
-        child.material = Array.isArray(child.material) ? materials : materials[0]
-      })
-
-      this.deck.add(model)
-    }, undefined, (err) => {
-      console.warn('could not load BoatModel.FBX', err)
-    })
+    // handling is live from the first frame; the mesh appears a beat later.
+    // Every material is remembered so a hit can flash the whole boat red.
+    const remember = (material: THREE.MeshStandardNodeMaterial) =>
+      this.tints.push({ material, base: material.color.clone() })
+    loadBoat(remember)
+      .then((model) => this.deck.add(model))
+      .catch((err) => console.warn('could not load boat.fbx', err))
   }
 
   get alive() {

@@ -22,6 +22,7 @@ import seascapeEntry from './shaders/water/fragment.wgsl?raw'
 
 import { BoatControls } from './controls/BoatControls'
 import { Ship } from './objects/Ship'
+import { loadIsland } from './objects/models'
 import { WaveField, BASE_CHOPPY } from './objects/WaveField'
 import { Physics } from './physics/Physics'
 import { Soundscape, type Clip } from './audio/Soundscape'
@@ -174,7 +175,8 @@ scene.add(sun)
 scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x1d4a63, 1.1))
 
 const physics = new Physics()
-const world = buildWorld()
+// every island is a copy of the Blender island, so it has to be loaded first
+const world = buildWorld(await loadIsland())
 for (const island of world.islands) {
   scene.add(island.group)
   if (island.beacon) scene.add(island.beacon)

@@ -11,7 +11,7 @@ export interface Hazard {
 export interface Island {
   id: string
   name: string
-  /** the island's own hue, painted on the land itself and on its chart marks */
+  /** the island's own hue, for its compass and chart marks and its beacon */
   tint: number
   position: THREE.Vector3
   /** you count as landed inside this */
@@ -112,59 +112,19 @@ export const CHART_PIECES = ISLAND_SPECS.length
 /** clear water to leave between two islands' landing beaches */
 const SEPARATION = 52
 
-/** a squat stack of cones and cylinders: enough to read as land at 400m */
-function makeIslandBody(random: () => number, radius: number, tint: number) {
+/** how far the island model's sandy base reaches, as a multiple of the island's radius */
+const SHORE_REACH = 1.15
+/** the height of the top of the sandy base in the island group, just above the waves */
+const BEACH_HEIGHT = 0.9
+
+/** one island: a copy of the Blender model, sized to the island and turned at random */
+function makeIslandBody(islandModel: THREE.Object3D, radius: number, random: () => number) {
   const group = new THREE.Group()
-
-  const baseColor = new THREE.Color(tint)
-
-  const rock = new THREE.MeshStandardNodeMaterial({
-    color: baseColor.clone().multiplyScalar(0.9),
-    roughness: 0.95,
-    flatShading: true,
-  })
-  const grass = new THREE.MeshStandardNodeMaterial({
-    color: baseColor.clone().multiplyScalar(1.15),
-    roughness: 0.9,
-    flatShading: true,
-  })
-  const sand = new THREE.MeshStandardNodeMaterial({ color: 0xbdae86, roughness: 1, flatShading: true })
-
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.25, 3, 9), rock)
-  base.position.y = -0.5
-  group.add(base)
-
-  const beach = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.06, radius * 1.24, 1.1, 9), sand)
-  beach.position.y = 0.35
-  group.add(beach)
-
-  // a few humps of higher ground, one taller than the rest
-  const humps = 3 + Math.floor(random() * 3)
-  for (let i = 0; i < humps; i++) {
-    const tall = i === 0
-    const height = tall ? radius * 0.9 : radius * (0.25 + random() * 0.4)
-    const hump = new THREE.Mesh(
-      new THREE.ConeGeometry(radius * (tall ? 0.55 : 0.3 + random() * 0.2), height, tall ? 7 : 6),
-      tall ? rock : grass,
-    )
-    const angle = random() * Math.PI * 2
-    const spread = random() * radius * 0.35
-    hump.position.set(Math.sin(angle) * spread, height * 0.5 + 0.4, Math.cos(angle) * spread)
-    hump.rotation.y = random() * 3
-    group.add(hump)
-  }
-
-  // a few leaning posts, so the silhouette is not just a lump
-  const timber = new THREE.MeshStandardNodeMaterial({ color: 0x4a3a28, roughness: 0.9 })
-  for (let i = 0; i < 3; i++) {
-    if (random() > 0.6) continue
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.18, 3 + random() * 3, 5), timber)
-    const angle = random() * Math.PI * 2
-    post.position.set(Math.sin(angle) * radius * 0.6, 2, Math.cos(angle) * radius * 0.6)
-    post.rotation.z = (random() - 0.5) * 0.4
-    group.add(post)
-  }
-
+  const body = islandModel.clone()
+  body.scale.setScalar(radius * SHORE_REACH)
+  body.position.y = BEACH_HEIGHT
+  body.rotation.y = random() * Math.PI * 2
+  group.add(body)
   return group
 }
 
@@ -259,8 +219,11 @@ function placeIsland(index: number, radius: number, placed: Island[], random: ()
   return new THREE.Vector3(x, 0, z)
 }
 
-/** Lay out the islands and the rocks between them. The same seed gives the same sea */
-export function buildWorld(seed = Math.random() * 0xffffffff): World {
+/**
+ * Lay out the islands and the rocks between them. `islandModel` is the fitted
+ * Blender island from loadIsland(). The same seed gives the same sea.
+ */
+export function buildWorld(islandModel: THREE.Object3D, seed = Math.random() * 0xffffffff): World {
   const random = randomSource(seed)
   const islands: Island[] = []
   const hazards: Hazard[] = []
@@ -269,7 +232,7 @@ export function buildWorld(seed = Math.random() * 0xffffffff): World {
     const radius = 15 + random() * 9
     const position = placeIsland(index, radius, islands, random)
 
-    const group = makeIslandBody(random, radius, spec.tint)
+    const group = makeIslandBody(islandModel, radius, random)
     group.name = spec.id
     // kept out of the island group, so it stands upright while the land rocks
     const beacon = makeBeacon(spec.tint)
