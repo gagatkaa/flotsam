@@ -1457,3 +1457,31 @@ body {
   font-size: 0.85em;
   font-weight: 500;
 }
+
+/* ------------------------------------------------------------------- leave */
+/* the quiet way out of an island's story: present, but never louder than the story */
+.leave {
+  justify-self: center;
+  padding: 8px 16px;
+  border: 1px solid rgba(239, 231, 214, 0.25);
+  border-radius: var(--r-pill);
+  background: rgba(6, 20, 30, 0.55);
+  font-family: var(--sans);
+  font-size: var(--fs-small);
+  letter-spacing: 0.03em;
+  color: rgba(239, 231, 214, 0.8);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.leave:focus-visible {
+  border-color: var(--brass);
+  outline: none;
+}
+
+@media (hover: hover) {
+  .leave:hover {
+    border-color: rgba(239, 231, 214, 0.55);
+    color: var(--ink);
+  }
+}

@@ -51,6 +51,8 @@ export interface RunEvents {
   onDepart(): void
   onTell(event: IslandEvent, island: Island): void
   onAshore(event: IslandEvent, island: Island): void
+  /** a choice was made on this island, so it is spent */
+  onVisited(island: Island): void
   onDamage(amount: number): void
   onCharted(): void
   onHome(log: string[]): void
@@ -66,7 +68,7 @@ export interface RunEvents {
 export class Run {
   phase: Phase = 'intro'
   deck: Card[] = []
-  /** islands you have landed on */
+  /** islands where you have made your choice */
   visited = new Set<string>()
   /** map pieces: the thing you're actually collecting */
   pieces = new Set<string>()
@@ -81,6 +83,9 @@ export class Run {
   provisions = STARTING_LOAD.provisions
   /** seconds spent at the helm, for the closing score */
   sailTime = 0
+
+  /** the island you are standing on, between landing and choosing */
+  private ashoreAt: Island | null = null
 
   private readonly events: RunEvents
 
@@ -131,8 +136,15 @@ export class Run {
   /** landed: first the story telling, then the choice */
   land(event: IslandEvent, island: Island) {
     this.phase = 'telling'
-    this.visited.add(island.id)
+    this.ashoreAt = island
     this.events.onTell(event, island)
+  }
+
+  /** walk back to the boat without choosing anything. The island keeps its story for later */
+  leave() {
+    if (this.phase !== 'telling' && this.phase !== 'ashore') return
+    this.ashoreAt = null
+    this.sail()
   }
 
   /** read the telling through, now the decision */
@@ -156,7 +168,12 @@ export class Run {
   /** the player took an option: apply it, then cast off */
   resolve(choice: Choice) {
     // only one choice per landing, and only one you can pay for
-    if (this.phase !== 'ashore' || !this.canAfford(choice)) return
+    const island = this.ashoreAt
+    if (this.phase !== 'ashore' || !island || !this.canAfford(choice)) return
+
+    this.ashoreAt = null
+    this.visited.add(island.id)
+    this.events.onVisited(island)
 
     this.log.push(choice.outcome)
 

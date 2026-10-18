@@ -108,6 +108,7 @@ const waves = new WaveField()
 const run = new Run({
   onTell: showTell,
   onAshore: showAshore,
+  onVisited: raiseFlag,
   onDepart() {
     // a choice can change the boat, so hand the new numbers over and redraw
     ship.applyStats(run.stats)
@@ -296,6 +297,7 @@ function showTell(event: IslandEvent, island: Island) {
   openPanel(
     sceneBlock(event.title, event.telling, event.adventure),
     button('go', 'go ashore', () => run.decide(event, island)),
+    leaveButton(),
   )
 }
 
@@ -311,7 +313,22 @@ function showAshore(event: IslandEvent) {
     hand.appendChild(choiceCard(choice, run.canAfford(choice), () => run.resolve(choice)))
   }
 
-  openPanel(sceneBlock(event.title, event.adventure), hand)
+  openPanel(sceneBlock(event.title, event.adventure), hand, leaveButton())
+}
+
+/** back to the boat without choosing: the island stays unvisited, so you can return */
+function leaveButton() {
+  return button('leave', 'leave for now, back to the boat (Esc)', () => leaveIsland(false))
+}
+
+function leaveIsland(byKey: boolean) {
+  // the prompt may offer this island again straight away; it never forces a landing
+  shownOn = null
+  run.leave()
+  // Browsers do not count Esc as a gesture that may take the mouse, so the lock
+  // the departure asks for can be refused. Show the pause menu, whose Resume
+  // button can; it hides itself if the lock lands after all.
+  if (byKey && !controls.isLocked) showPause()
 }
 
 /** the score for the voyage as it stands, recorded against the best so far */
@@ -397,7 +414,6 @@ function landOn(island: Island | null) {
 
   shownOn = island.id
   landingTarget = null
-  raiseFlag(island)
 
   const event = eventFor(island.event)
   if (!event) {
@@ -405,6 +421,7 @@ function landOn(island: Island | null) {
     // straight back into open water, which looks like nothing working.
     console.error(`no event written for island: ${island.id} (${island.event})`)
     run.visited.add(island.id)
+    raiseFlag(island)
     showNothingHere(island)
     return
   }
@@ -479,6 +496,11 @@ window.addEventListener('keydown', (event) => {
   else if (event.code === 'Escape' && isPaused()) {
     event.preventDefault()
     resume()
+  }
+  // Esc on an island walks you back to the boat
+  else if (event.code === 'Escape' && (run.phase === 'telling' || run.phase === 'ashore')) {
+    event.preventDefault()
+    leaveIsland(true)
   }
 })
 
