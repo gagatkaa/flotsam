@@ -1,18 +1,53 @@
 # Flotsam
 
-A short sailing game on a WebGPU ocean. You sail a small boat between four islands, make a choice on
-each one, and collect the four pieces of a map to find your way home. The sea is the raymarched
-**Seascape shader by TDM**, ported from GLSL to WGSL and rendered by three.js `WebGPURenderer`, and the
-boat floats on its waves and carves a wake into them.
+**A short sailing game on a raymarched WebGPU ocean.**
 
-**Original shader:** https://www.shadertoy.com/view/Ms2SD1
+Eleven days lost at sea, and the map home is torn into four pieces, each one waiting on an island.
+Sail a small wooden boat through rocky water, land on the islands, decide what each one is worth to
+you, and put the map back together before your hull or your crew gives out.
 
-Seascape is licensed CC BY-NC-SA 3.0: attribution required, non-commercial use only.
+**Play it:** https://gagatkaa.github.io/flotsam/ (needs a browser with WebGPU, such as Chrome or Edge)
 
-**Live demo:** https://gagatkaa.github.io/flotsam/ (needs a browser with WebGPU, such as Chrome or Edge)
+The ocean is [**Seascape** by Alexander Alekseev (TDM)](https://www.shadertoy.com/view/Ms2SD1),
+ported from GLSL to WGSL and rendered with three.js `WebGPURenderer`.
 
-**Source & setup instructions:** [`flotsam/README.md`](flotsam/README.md). The Vite + TypeScript app
-lives in [`flotsam/`](flotsam/).
+## The voyage
+
+- **Four islands, four map pieces.** A wreck that won't sink, a lighthouse with no light, a crab
+  market and the bones of a giant. Each one has its own story and several ways to deal with it.
+- **Every choice costs something.** Health, crew, food or gold, and you always see the price before
+  you pick. Some choices only appear because of what you did on another island.
+- **Wreckage among the rocks.** Crates of food, barrels of coin and planks to patch the hull float
+  between the islands, right next to the rocks that will tear your hull open.
+- **The crew gets hungry.** Food runs down while you sail, and a hungry crew sails slowly and breaks
+  things.
+- **A score at the end.** Make it home or go down trying, and you get a points breakdown, a title for
+  the run and your best score.
+
+## Controls
+
+| | |
+| --- | --- |
+| `W` / `S` | speed up / slow down |
+| `A` / `D` | steer left / right |
+| `E` | go ashore when you are close to an island |
+| mouse | look around (click to grab the mouse) |
+| `Esc` | pause, or leave an island without choosing |
+
+The view rides the deck of a rocking boat. If you start to feel dizzy, stop and take a break.
+
+## How it works
+
+The Seascape shader is drawn as the scene's background, with its rays starting from the game camera,
+so sailing really moves you through the water. It gets a few extra inputs each frame: the boat's
+position, heading and speed, which carve a wake into the waves, and a "choppiness" value that makes
+the sea rougher as you collect map pieces. The wave maths is mirrored on the CPU so the boat, the
+islands and the wreckage float on the same surface you see.
+
+Collisions with islands and rocks are detected with cannon-es. More detail, including how the shader
+was ported, is in [`flotsam/README.md`](flotsam/README.md).
+
+## Run it locally
 
 ```bash
 cd flotsam
@@ -20,27 +55,9 @@ npm install
 npm run dev
 ```
 
-## How this answers the assignment
+Built with three.js (WebGPU + TSL), cannon-es, TypeScript and Vite.
 
-| Requirement | Where |
-| --- | --- |
-| A fragment shader from Shadertoy, ported to WebGPU | `flotsam/src/shaders/water/lib.wgsl` + `fragment.wgsl`: Seascape's GLSL rewritten as WGSL (raymarch, waves, lighting) |
-| Embedded in three.js with the `WebGPURenderer` | `flotsam/src/main.ts`: the shader is bound as `scene.backgroundNode` through three's TSL (`wgsl`, `wgslFn`) |
-| The shader responds to user interaction | steering the boat (`W`/`S`/`A`/`D`) changes the `uShipPos`, `uShipDir` and `uShipSpeed` uniforms, which carve the boat's wake into the waves inside the raymarch; the camera rides the boat, so sailing moves the point the rays start from; and the `uChoppy` uniform makes the sea rougher as you collect map pieces |
-| A working URL | the live demo above, built from `flotsam/` by the GitHub Pages workflow in `.github/workflows/` |
-| Source code without `node_modules` | `flotsam/.gitignore` excludes `node_modules/` and `dist/` |
-| Original Shadertoy URL in the root README | the top of this file |
+## Credits
 
-### Extra marks
-
-| Extra | Covered? |
-| --- | --- |
-| Interaction which is more than just looking around | **Yes.** Sailing with throttle and rudder, landing on islands, choices with costs that unlock other choices, wreckage to pick up, food that runs out, and a final score. |
-| Integration of physics | **Yes.** cannon-es (`flotsam/src/physics/Physics.ts`) detects when the hull touches an island or rock. The push-out and damage are then worked out in our own code; the boat's movement itself is not simulated by cannon-es. |
-| Integration of multiple shaders | **No.** There is one custom shader, the ported Seascape. The boat's wake is an extra function added inside that same shader, not a second shader. Everything else uses three.js's built-in materials. |
-| Integration of additional WebGPU libraries | **No.** TSL is part of three.js itself, and cannon-es is not a WebGPU library. |
-| Own Blender models, including baking | **No.** The boat is an FBX model loaded with three's `FBXLoader`, with no baked textures. |
-| Controlling animations from a Blender model | **No.** |
-
-**Controls:** `W`/`S` speed up / slow down, `A`/`D` steer, `E` go ashore, mouse to look, `Esc` to
-pause or leave an island.
+- Ocean shader: [Seascape by Alexander Alekseev (TDM), 2014](https://www.shadertoy.com/view/Ms2SD1),
+  licensed CC BY-NC-SA 3.0. This project is non-commercial and keeps the attribution.
