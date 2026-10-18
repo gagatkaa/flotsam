@@ -294,8 +294,8 @@ rig    (turns left/right: yaw)
      └─ boat model (boat.fbx, from loadBoat() in models.ts)
 ```
 
-The camera sits back from the mast towards the stern and half a metre to starboard, so you look
-forward over the bow without the mast splitting the view.
+The camera sits in the middle of the boat, a little to port, so the mast and sail stand just ahead
+and to your right while the view forward over the bow stays clear.
 
 ### The models (`src/objects/models.ts`)
 
@@ -304,7 +304,8 @@ textures. `models.ts` loads them with three's `FBXLoader` and fits them to the g
 
 - **Materials:** each FBX material is swapped for a `MeshStandardNodeMaterial` with the same colour
   and flat shading, so the WebGPU renderer lights them like everything else and they keep their
-  low-poly look.
+  low-poly look. Both sides of every face are drawn, because the sail and the palm leaves are
+  single sheets that would vanish when seen from behind.
 - **Wrapping:** the loader keeps Blender's own transform (its Z-up rotation and centimetre scale) on
   the model's root. Each model is put inside an empty group, and all fitting is done on that group,
   so Blender's transform is never overwritten.

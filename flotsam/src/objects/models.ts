@@ -12,7 +12,9 @@ const loader = new FBXLoader()
 /**
  * Swap the FBX loader's Phong materials for node materials the WebGPU renderer
  * lights like everything else, keeping each one's Blender colour and the flat,
- * faceted low-poly look. `onMaterial` sees every new material.
+ * faceted low-poly look. Both sides are drawn, because thin parts like the sail
+ * and the palm leaves are single sheets that would vanish when seen from
+ * behind. `onMaterial` sees every new material.
  */
 function useNodeMaterials(model: THREE.Object3D, onMaterial?: (material: THREE.MeshStandardNodeMaterial) => void) {
   model.traverse((child) => {
@@ -23,6 +25,7 @@ function useNodeMaterials(model: THREE.Object3D, onMaterial?: (material: THREE.M
         color: (source as THREE.MeshPhongMaterial).color.clone(),
         roughness: 0.8,
         flatShading: true,
+        side: THREE.DoubleSide,
       })
       onMaterial?.(material)
       return material

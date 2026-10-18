@@ -30,12 +30,13 @@ const HEEL = 0.19
 const REST_HELM = 0.25
 
 /**
- * Where the player's eyes are: above the deck, back from the mast towards the
- * stern, and a little to starboard so the mast does not split the view.
+ * Where the player's eyes are: above the deck in the middle of the boat, a
+ * little to port. The mast and sail stand just ahead and to starboard, so the
+ * view forward over the bow stays clear.
  */
-const CAMERA_SIDE = 0.55
-const CAMERA_HEIGHT = 1.1
-const CAMERA_AFT = 1.2
+const CAMERA_SIDE = -0.3
+const CAMERA_HEIGHT = 1.15
+const CAMERA_AFT = 0
 
 /**
  * The rowboat model (boat.fbx, made in Blender) riding the CPU mirror of the shader's wave
