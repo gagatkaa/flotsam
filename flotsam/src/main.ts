@@ -7,11 +7,11 @@ import '@fontsource/ibm-plex-mono/600.css'
 import * as THREE from 'three/webgpu'
 import {
   cameraPosition,
+  colorSpaceToWorking,
   normalize,
   positionWorld,
   screenSize,
   uniform,
-  vec3,
   vec4,
   wgsl,
   wgslFn,
@@ -22,6 +22,7 @@ import seascapeEntry from './shaders/water/fragment.wgsl?raw'
 
 import { BoatControls } from './controls/BoatControls'
 import { Ship } from './objects/Ship'
+import { loadIsland } from './objects/models'
 import { WaveField, BASE_CHOPPY } from './objects/WaveField'
 import { Physics } from './physics/Physics'
 import { Soundscape, type Clip } from './audio/Soundscape'
@@ -81,11 +82,9 @@ scene.fog = new THREE.FogExp2(0x9fc4dd, 0.0035)
 
 // ---------------------------------------------------------------- ocean shader
 // "Seascape" by Alexander Alekseev aka TDM - https://www.shadertoy.com/view/Ms2SD1
-// The helpers are emitted at module scope ahead of the entry function. `wgslFn`
-// is typed as returning an untyped Node, so cast it to a vec3 node.
-const seascape = wgslFn(seascapeEntry, [wgsl(seascapeHelpers)]) as unknown as (
-  ...args: THREE.Node[]
-) => ReturnType<typeof vec3>
+// `wgslFn` reads the signature of the entry function; the helpers it calls are
+// added to the shader module ahead of it with `wgsl`.
+const seascape = wgslFn(seascapeEntry, [wgsl(seascapeHelpers)])
 
 const uTime = uniform(0)
 const uChoppy = uniform(BASE_CHOPPY)
@@ -96,10 +95,24 @@ const uShipSpeed = uniform(0)
 
 // three renders scene.backgroundNode on a skybox sphere with its translation
 // stripped, so positionWorld is the world space view ray of this fragment.
-scene.backgroundNode = vec4(
-  seascape(normalize(positionWorld), cameraPosition, screenSize, uTime, uChoppy, uShipPos, uShipDir, uShipSpeed),
-  1,
-)
+// The arguments are matched to the WGSL parameters by name. TypeScript cannot
+// read the WGSL, so it is told here that seascape() returns a vec3f colour.
+const seaColor = seascape({
+  rayDir: normalize(positionWorld),
+  rayOrigin: cameraPosition,
+  iResolution: screenSize,
+  iTime: uTime,
+  choppy: uChoppy,
+  shipPos: uShipPos,
+  shipDir: uShipDir,
+  shipSpeed: uShipSpeed,
+}) as THREE.Node<'vec3'>
+
+// Seascape outputs display-ready (sRGB) colours, like every Shadertoy shader.
+// The boat and islands are lit in three's linear working space and converted to
+// sRGB at the end, so mark the sea as sRGB already, or that conversion would
+// brighten and wash it out a second time.
+scene.backgroundNode = colorSpaceToWorking(vec4(seaColor, 1), THREE.SRGBColorSpace)
 
 // the CPU mirror of the shader's wave field, so the ship rides the visible water
 const waves = new WaveField()
@@ -162,7 +175,8 @@ scene.add(sun)
 scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x1d4a63, 1.1))
 
 const physics = new Physics()
-const world = buildWorld()
+// every island is a copy of the Blender island, so it has to be loaded first
+const world = buildWorld(await loadIsland())
 for (const island of world.islands) {
   scene.add(island.group)
   if (island.beacon) scene.add(island.beacon)

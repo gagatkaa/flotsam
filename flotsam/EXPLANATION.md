@@ -66,14 +66,14 @@ that the boat can float on the waves you see, the same wave maths is copied into
 | **Seascape** shader | Shadertoy, by Alexander Alekseev (TDM): https://www.shadertoy.com/view/Ms2SD1 (CC BY-NC-SA 3.0) | The ocean and sky. We rewrote it from GLSL to WGSL by hand. |
 | **three.js** `WebGPURenderer` | npm package `three`, imported from `three/webgpu` | Draws everything with WebGPU: the shader as the background, plus the boat, islands, rocks, wreckage and beacons. |
 | **TSL** (Three Shading Language) | part of three.js, imported from `three/tsl` | The glue between three.js and our WGSL: `wgslFn` and `wgsl` load the shader code, `uniform` makes values we can change from TypeScript, `positionWorld`, `cameraPosition`, `screenSize` give the shader its inputs. |
-| `FBXLoader` | three.js addons, `three/addons/loaders/FBXLoader.js` | Loads the boat model `src/objects/BoatModel.FBX`. |
+| `FBXLoader` | three.js addons, `three/addons/loaders/FBXLoader.js` | Loads our two Blender models, `boat.fbx` and `island.fbx`. |
 | `PointerLockControls` | three.js addons, `three/addons/controls/PointerLockControls.js` | Mouse look. Our `BoatControls` class extends it and adds W/A/S/D. |
 | **cannon-es** | npm package `cannon-es` | Collision detection between the boat and the islands/rocks. |
 | **Web Audio API** | built into the browser | All sound: the sea loop, the water churning past the hull, hits, pickups, island sounds. |
 | **Vite** | npm package `vite` | Dev server and production build. Its `?raw` import loads the `.wgsl` files as text; its `?url` import gives us URLs for the model and sound files. |
 | **TypeScript** | npm package `typescript` | The language for all game code; `tsc` checks types before every build. |
 | Fonts | npm packages `@fontsource-variable/fraunces`, `@fontsource/ibm-plex-mono` | The serif and monospace fonts of the HUD and story panels. |
-| Boat model | `src/objects/BoatModel.FBX` | The boat you see from the deck. |
+| Boat and island models | `src/objects/boat.fbx`, `src/objects/island.fbx`, made in Blender and exported as FBX | The rowboat you sail (with mast, sail and ropes) and the island used for all four islands (sand, mountains, a palm tree, rocks). |
 | Sounds | `src/sounds/*.wav`, `*.mp3` | Sea loop, hull hit, chest and map pickups, the bell, door and market. |
 | **GitHub Actions + Pages** | `.github/workflows/deploy-pages.yml` in the repo root | Builds the game and puts it online on every push to `main`. |
 
@@ -92,8 +92,10 @@ flotsam/
     │   └── fragment.wgsl     the shader's entry function, seascape(...)
     ├── objects/
     │   ├── WaveField.ts      CPU copy of the shader's wave height (+ wake)
-    │   ├── Ship.ts           the boat: model, sailing, floating, damage, sinking
-    │   └── BoatModel.FBX
+    │   ├── Ship.ts           the boat: sailing, floating, damage, sinking
+    │   ├── models.ts         loads and fits the two Blender models
+    │   ├── boat.fbx          the rowboat (Blender)
+    │   └── island.fbx        the island (Blender)
     ├── physics/Physics.ts    cannon-es world: hull vs islands and rocks
     ├── controls/BoatControls.ts   mouse look + W/A/S/D → throttle and rudder
     ├── audio/Soundscape.ts   Web Audio: sea, churn, hits, pickups, island sounds
@@ -166,28 +168,45 @@ Two design rules keep this tidy:
 
 - `src/shaders/water/lib.wgsl`: constants and helper functions (noise, wave octaves, the wake, sky
   colour, sea colour, the raymarch).
-- `src/shaders/water/fragment.wgsl`: the entry function `seascape(dir, ori, resolution, time,
-  choppy, shipPos, shipDir, shipSpeed)` that returns a colour.
+- `src/shaders/water/fragment.wgsl`: the entry function `seascape(rayDir, rayOrigin, iResolution,
+  iTime, choppy, shipPos, shipDir, shipSpeed)` that returns a colour.
 
 ### How it gets into three.js
 
-In `main.ts`:
+This follows the "Shadertoy shader in Three.js" approach from the course. In `main.ts`:
 
 ```ts
 const seascape = wgslFn(seascapeEntry, [wgsl(seascapeHelpers)])
-scene.backgroundNode = vec4(
-  seascape(normalize(positionWorld), cameraPosition, screenSize, uTime, uChoppy, uShipPos, uShipDir, uShipSpeed),
-  1,
-)
+
+const seaColor = seascape({
+  rayDir: normalize(positionWorld),
+  rayOrigin: cameraPosition,
+  iResolution: screenSize,
+  iTime: uTime,
+  choppy: uChoppy,
+  shipPos: uShipPos,
+  shipDir: uShipDir,
+  shipSpeed: uShipSpeed,
+})
+
+scene.backgroundNode = colorSpaceToWorking(vec4(seaColor, 1), THREE.SRGBColorSpace)
 ```
 
 - Vite's `?raw` import gives us the two `.wgsl` files as strings.
-- `wgsl(helpers)` adds the helper code to the shader module, and `wgslFn(entry, ...)` turns the entry
-  function into a TSL node we can call with other nodes as arguments.
+- `wgslFn(entry, ...)` reads the signature of the entry function and turns it into a function we can
+  call. `wgsl(helpers)` adds the helper functions it uses to the same shader module.
+- The call uses **named arguments**: each property name must match a parameter name in the WGSL
+  function. The values are TSL nodes: built-in ones like `positionWorld` and `cameraPosition`, or
+  `uniform()` nodes we update every frame.
 - `scene.backgroundNode` is drawn by three.js on a big sphere around the camera. Because that sphere
   moves with the camera, `normalize(positionWorld)` is the direction this pixel looks in: the **view
   ray**. `cameraPosition` is where the ray starts. So the shader draws the ocean from wherever the
   game camera is.
+- **Colour space:** like every Shadertoy shader, Seascape outputs colours that are already ready for
+  the screen (sRGB). three.js lights the boat and islands in a linear colour space and converts the
+  whole image to sRGB at the end. Without `colorSpaceToWorking(..., SRGBColorSpace)` that conversion
+  would be applied to the sea a second time and wash it out to a pale blue. We can't switch the
+  conversion off for the whole renderer, because the lit objects need it.
 
 ### What the shader does per pixel
 
@@ -272,8 +291,31 @@ Who uses it:
 rig    (turns left/right: yaw)
  └─ deck   (tilts: pitch and roll from the waves)
      ├─ cameraMount ── camera   (so the view rocks with the boat)
-     └─ boat model (BoatModel.FBX, scaled to 4.2 m and recoloured wood-brown)
+     └─ boat model (boat.fbx, from loadBoat() in models.ts)
 ```
+
+The camera sits just in front of the mast, low enough that you look out over the open foredeck to
+the bow. Sideways it lines up with the tip of the bow, which `loadBoat()` finds in the hull's
+vertices once the model has loaded, so the bow always points straight ahead.
+
+### The models (`src/objects/models.ts`)
+
+Both models were made in Blender and exported as FBX, in centimetres, with flat colours and no
+textures. `models.ts` loads them with three's `FBXLoader` and fits them to the game:
+
+- **Materials:** each FBX material is swapped for a `MeshStandardNodeMaterial` with the same colour
+  and flat shading, so the WebGPU renderer lights them like everything else and they keep their
+  low-poly look. Both sides of every face are drawn, because the sail and the palm leaves are
+  single sheets that would vanish when seen from behind.
+- **Wrapping:** the loader keeps Blender's own transform (its Z-up rotation and centimetre scale) on
+  the model's root. Each model is put inside an empty group, and all fitting is done on that group,
+  so Blender's transform is never overwritten.
+- **The boat** (`loadBoat`): turned so its bow (towards +X in Blender) points down -Z, scaled to
+  4.2 m long, and centred on its **hull**. Centring on the whole model would include the 3.7 m mast
+  and sink the hull under water.
+- **The island** (`loadIsland`): scaled so its sandy base is 1 unit from the centre to the edge,
+  with the top of the sand at height 0. `buildWorld()` places a copy on each island, scaled to the
+  island's size and turned at random, so the four islands don't all look the same from one side.
 
 ### Sailing (`sail()`)
 
@@ -328,7 +370,8 @@ same world. Each new game picks a random seed.
 1. **Islands** (four, defined in `ISLAND_SPECS`): each gets a random size and a spot on a ring around
    the start. A spot too close to another island is rejected and redrawn; if all tries fail, the
    island is pushed away from its nearest neighbour until there is room.
-2. **Island looks:** a few cones and cylinders in the island's colour, plus wooden posts.
+2. **Island looks:** a copy of the Blender island (`island.fbx`), sized to the island and turned at
+   random. `main.ts` loads the model before building the world, because every island needs it.
 3. **Beacons:** a tall glowing column over every island, so you can spot it from far away.
 4. **Rocks:** placed along the lines between pairs of islands, never inside an island's landing area.
 5. **Wreckage** (`scatterFlotsam`): 28 pieces, each placed 4 to 13 m from a rock, so collecting it
@@ -515,8 +558,8 @@ npm run preview   # serve the built dist/ locally
 | Physics | **Yes.** cannon-es for collision detection (section 8 says exactly what it does). |
 | Multiple shaders | **No.** One custom shader, the ported Seascape. The wake is a function inside it. Everything else uses three.js's built-in materials. |
 | Additional WebGPU libraries | **No.** TSL is part of three.js, and cannon-es is not a WebGPU library. |
-| Own Blender model with baking | **No.** The boat is an FBX model with no baked textures. |
-| Blender animations | **No.** |
+| Own Blender models, including baking | **Partly.** The boat and the island are our own Blender models, exported as FBX. They use flat colours, with no baked textures. |
+| Controlling animations from a Blender model | **No.** The models have no animations. |
 
 ---
 
