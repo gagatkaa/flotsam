@@ -30,13 +30,14 @@ const HEEL = 0.19
 const REST_HELM = 0.25
 
 /**
- * Where the player's eyes are: above the deck in the middle of the boat, a
- * little to port. The mast and sail stand just ahead and to starboard, so the
- * view forward over the bow stays clear.
+ * Where the player's eyes are: at the bow, on the centreline, looking out over
+ * the water. The sail runs from the top of the mast down to the bow, so any
+ * spot between the mast and the bow is inside it; this is just in front of its
+ * leading edge. A negative distance aft means forward of the middle.
  */
-const CAMERA_SIDE = -0.3
-const CAMERA_HEIGHT = 1.15
-const CAMERA_AFT = 0
+const CAMERA_SIDE = 0
+const CAMERA_HEIGHT = 1.05
+const CAMERA_AFT = -1.85
 
 /**
  * The rowboat model (boat.fbx, made in Blender) riding the CPU mirror of the shader's wave

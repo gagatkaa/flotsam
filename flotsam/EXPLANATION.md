@@ -294,8 +294,9 @@ rig    (turns left/right: yaw)
      └─ boat model (boat.fbx, from loadBoat() in models.ts)
 ```
 
-The camera sits in the middle of the boat, a little to port, so the mast and sail stand just ahead
-and to your right while the view forward over the bow stays clear.
+The camera sits at the bow, on the centreline, so you look straight out over the water. It can't
+go between the mast and the bow, because the sail fills that space from the top of the mast down to
+the bow.
 
 ### The models (`src/objects/models.ts`)
 
