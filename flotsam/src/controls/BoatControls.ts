@@ -40,15 +40,25 @@ export class BoatControls extends PointerLockControls {
   }
 
   update(delta: number) {
-    const keys = this.keys
-    const throttleTarget = (keys.has('KeyW') || keys.has('w') ? 1 : 0) - (keys.has('KeyS') || keys.has('s') ? 1 : 0)
-    const rudderTarget = (keys.has('KeyA') || keys.has('a') ? 1 : 0) - (keys.has('KeyD') || keys.has('d') ? 1 : 0)
+    const throttleTarget = this.axis('w', 's')
+    // positive rudder swings the bow to starboard (right)
+    const rudderTarget = this.axis('d', 'a')
 
     this.throttle += (throttleTarget - this.throttle) * Math.min(1, THROTTLE_RATE * delta)
     this.rudder += (rudderTarget - this.rudder) * Math.min(1, RUDDER_RATE * delta)
 
     if (Math.abs(this.throttle) < 0.001) this.throttle = 0
     if (Math.abs(this.rudder) < 0.001) this.rudder = 0
+  }
+
+  /** +1 while the positive letter is held, -1 for the negative one, 0 for both or neither */
+  private axis(positive: string, negative: string) {
+    return Number(this.isHeld(positive)) - Number(this.isHeld(negative))
+  }
+
+  /** a letter key is held if either its physical key or the letter it types is down */
+  private isHeld(letter: string) {
+    return this.keys.has(`Key${letter.toUpperCase()}`) || this.keys.has(letter)
   }
 }
 

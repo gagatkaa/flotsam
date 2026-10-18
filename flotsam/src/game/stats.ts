@@ -73,7 +73,6 @@ export type Modifier = Partial<Record<keyof Stats, number>>
 export interface Card {
   id: string
   name: string
-  family: 'hull' | 'sail' | 'utility' | 'risky'
   /** the player-facing description, written from the card's own numbers */
   text: string
   /** multiplied once per copy */
@@ -93,16 +92,8 @@ export function resolve(deck: readonly Card[], load: Load = STARTING_LOAD): Stat
   applyLoad(stats, load)
 
   for (const card of deck) {
-    if (card.mul) {
-      for (const [key, factor] of Object.entries(card.mul) as [keyof Stats, number][]) {
-        stats[key] *= factor
-      }
-    }
-    if (card.add) {
-      for (const [key, amount] of Object.entries(card.add) as [keyof Stats, number][]) {
-        stats[key] += amount
-      }
-    }
+    for (const [key, factor] of entries(card.mul)) stats[key] *= factor
+    for (const [key, amount] of entries(card.add)) stats[key] += amount
   }
 
   stats.hull = Math.max(1, stats.hull)
@@ -112,10 +103,8 @@ export function resolve(deck: readonly Card[], load: Load = STARTING_LOAD): Stat
   stats.rideHeight = Math.max(0.1, stats.rideHeight)
   stats.helmFloor = Math.min(1, Math.max(0, stats.helmFloor))
   stats.frailty = Math.max(0.15, stats.frailty)
-  // seven islands, six of them worth finding, and one copy already shows all
+  // one copy already shows every island, so further copies change nothing
   stats.lookahead = Math.min(6, Math.max(0, stats.lookahead))
-
-  // you cannot sail with nobody at all. a boat with no hands is going adrift.
 
   return stats
 }
@@ -150,12 +139,12 @@ function applyLoad(stats: Stats, load: Load) {
 export function describe(card: Card): string {
   const parts: string[] = []
 
-  for (const [key, factor] of Object.entries(card.mul ?? {}) as [keyof Stats, number][]) {
+  for (const [key, factor] of entries(card.mul)) {
     const sign = factor >= 1 ? '+' : ''
     parts.push(`${LABELS[key]} ${sign}${Math.round((factor - 1) * 100)}%`)
   }
 
-  for (const [key, amount] of Object.entries(card.add ?? {}) as [keyof Stats, number][]) {
+  for (const [key, amount] of entries(card.add)) {
     // lookahead counts landmarks rather than adjusting a number, and one copy
     // already reveals everything there is, so describe the effect instead
     if (key === 'lookahead') continue
@@ -169,6 +158,11 @@ export function describe(card: Card): string {
   if ((card.add?.lookahead ?? 0) > 0) parts.push(LABELS.lookahead)
 
   return parts.join('  ·  ')
+}
+
+/** a modifier's [stat, value] pairs, typed by stat name */
+function entries(modifier: Modifier = {}) {
+  return Object.entries(modifier) as [keyof Stats, number][]
 }
 
 const LABELS: Record<keyof Stats, string> = {

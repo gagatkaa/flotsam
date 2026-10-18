@@ -1,19 +1,9 @@
-import { CARDS } from './cards'
+import { cardById } from './cards'
 import type { IslandEvent } from './run'
 
-function byId(id: string) {
-  const card = CARDS.find((c) => c.id === id)
-
-  if (!card) {
-    throw new Error(`event references unknown card: ${ id } `)
-  }
-
-  return card
-}
-
-export const EVENTS: Record<string, IslandEvent> = {
+/** the story on each island, keyed by the island's `event` id */
+const EVENTS: Record<string, IslandEvent> = {
   wreck: {
-    island: 'wreck',
     title: 'The Ship That Wouldn’t Sink',
 
     telling:
@@ -33,24 +23,26 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You rescue the sailor and find a hidden box of black powder. The escape costs you 8 health, but you gain 1 crew member.',
 
         piece: 'wreck',
-        gain: byId('blackpowder'),
+        gain: cardById('blackpowder'),
         damage: 8,
         crewDelta: 1,
+        sets: 'saved-sailor',
       },
 
       {
         text: 'Forget the sailor. Strip the ship.',
 
         preview:
-          'The hull is full of strong timber, better than anything on your own ship. You send the crew down before the wreck finally gives up and sinks.',
+          'The hull is full of strong timber, better than anything on your own ship, and the captain’s strongbox is still bolted to the cabin floor. You send the crew down before the wreck finally gives up and sinks.',
 
         outcome:
-          'You recover a heavy keel beam, but one crew member is trapped when the wreck collapses. You lose 12 health and 1 crew member.',
+          'You recover a heavy keel beam and the captain’s coin, but one crew member is trapped when the wreck collapses. You lose 12 health and 1 crew member.',
 
         piece: 'wreck',
-        gain: byId('keel'),
+        gain: cardById('keel'),
         damage: 12,
         crewDelta: -1,
+        goldDelta: 25,
       },
 
       {
@@ -63,13 +55,12 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You gain spare rigging and leave without taking any damage.',
 
         piece: 'wreck',
-        gain: byId('rigging'),
+        gain: cardById('rigging'),
       },
     ],
   },
 
   gallows: {
-    island: 'gallows',
     title: 'The Lighthouse With No Light',
 
     telling:
@@ -89,7 +80,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You escape with the chart and gain the Navigator’s Glass.',
 
         piece: 'gallows',
-        gain: byId('glass'),
+        gain: cardById('glass'),
       },
 
       {
@@ -102,27 +93,27 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You salvage parts from the lighthouse and upgrade your helm.',
 
         piece: 'gallows',
-        gain: byId('helm'),
+        gain: cardById('helm'),
       },
 
       {
         text: 'Break open the locked box.',
 
         preview:
-          'The lock gives after a few hits. Inside is black powder, a half-eaten biscuit, and a logbook. The final entry was written yesterday. The lighthouse has supposedly been empty for twelve years.',
+          'The lock gives after a few hits. Inside is black powder, a little coin, a half-eaten biscuit, and a logbook. The final entry was written yesterday. The lighthouse has supposedly been empty for twelve years.',
 
         outcome:
-          'You gain black powder and leave with a very uncomfortable mystery.',
+          'You take the black powder and the coin, and leave with a very uncomfortable mystery.',
 
         piece: 'gallows',
-        gain: byId('blackpowder'),
+        gain: cardById('blackpowder'),
+        goldDelta: 15,
         sets: 'opened-the-box',
       },
     ],
   },
 
   kitchen: {
-    island: 'kitchen',
     title: 'The Crab Market',
 
     telling:
@@ -142,7 +133,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You spend 5 provisions, gain hull plating, and take 2 passengers aboard.',
 
         piece: 'kitchen',
-        gain: byId('plating'),
+        gain: cardById('plating'),
         provisionsDelta: -5,
         passengersDelta: 2,
       },
@@ -157,7 +148,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'The villagers reward you with spare pumps and enough food for several days. You gain 4 provisions.',
 
         piece: 'kitchen',
-        gain: byId('pumps'),
+        gain: cardById('pumps'),
         provisionsDelta: 4,
       },
 
@@ -168,16 +159,48 @@ export const EVENTS: Record<string, IslandEvent> = {
           'While everyone is chasing the crab, you help yourself to a few unattended supplies. Unfortunately, the market master notices before you reach your boat.',
 
         outcome:
-          'You escape with what you took, but lose 8 health after a very short and very unfair fight.',
+          'You escape with a purse and a sack of food, but lose 8 health after a very short and very unfair fight.',
 
         piece: 'kitchen',
         damage: 8,
+        goldDelta: 20,
+        provisionsDelta: 3,
+      },
+
+      {
+        text: 'Pay for a ship’s cook.',
+
+        preview:
+          'A retired galley cook has been sitting on the same crate all morning. For a fair price she will bring her pots, her spices, and enough salted fish to last the trip.',
+
+        outcome:
+          'You pay 20 gold. The cook comes aboard with 6 days of food.',
+
+        piece: 'kitchen',
+        goldDelta: -20,
+        provisionsDelta: 6,
+        crewDelta: 1,
+      },
+
+      {
+        text: 'Let the sailor do the talking.',
+
+        preview:
+          'The sailor you pulled from the wreck grew up on this dock. Half the market owes his family a favour, and the market master is his cousin.',
+
+        outcome:
+          'The sailor gets you hull plating and passage for two locals, for only 2 days of food.',
+
+        piece: 'kitchen',
+        gain: cardById('plating'),
+        provisionsDelta: -2,
+        passengersDelta: 2,
+        requires: 'saved-sailor',
       },
     ],
   },
 
   bones: {
-    island: 'bones',
     title: 'The Sleeping Giant',
 
     telling:
@@ -197,7 +220,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You take the chart without disturbing the shrine and gain a helm upgrade.',
 
         piece: 'bones',
-        gain: byId('helm'),
+        gain: cardById('helm'),
       },
 
       {
@@ -210,7 +233,7 @@ export const EVENTS: Record<string, IslandEvent> = {
           'You reinforce the ship with a giant rib, but the dangerous work costs you 12 health.',
 
         piece: 'bones',
-        gain: byId('tight-fit'),
+        gain: cardById('tight-fit'),
         damage: 12,
       },
 
@@ -227,10 +250,26 @@ export const EVENTS: Record<string, IslandEvent> = {
         damage: 8,
         passengersDelta: 1,
       },
+
+      {
+        text: 'Read the lighthouse logbook aloud.',
+
+        preview:
+          'The handwriting in the logbook matches the notes pinned around the shrine. When you read the last entry aloud, a thin old man climbs out of the skull: the lighthouse keeper, twelve years gone.',
+
+        outcome:
+          'The keeper joins your crew, hands you the chart and his savings, and shows you the safe way down.',
+
+        piece: 'bones',
+        crewDelta: 1,
+        goldDelta: 30,
+        requires: 'opened-the-box',
+      },
     ],
   },
 }
 
+/** the story written for an island, or undefined if it has none yet */
 export function eventFor(id: string): IslandEvent | undefined {
   return EVENTS[id]
 }

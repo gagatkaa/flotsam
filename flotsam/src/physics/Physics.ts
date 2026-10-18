@@ -1,5 +1,7 @@
 import * as CANNON from 'cannon-es'
 
+type SolidKind = 'rock' | 'island'
+
 /** one thing the boat is grinding against right now */
 export interface ContactHit {
   /** world-space normal pointing away from the thing she hit, on the XZ plane */
@@ -9,7 +11,13 @@ export interface ContactHit {
   depth: number
   /** how hard she is pressing into it, along the normal */
   speed: number
-  kind: 'rock' | 'island'
+  kind: SolidKind
+}
+
+interface Point {
+  x: number
+  y: number
+  z: number
 }
 
 const FIXED = 1 / 60
@@ -17,7 +25,7 @@ const FIXED = 1 / 60
 const HULL = 2
 
 interface Solid {
-  kind: 'rock' | 'island'
+  kind: SolidKind
   body: CANNON.Body
   radius: number
   /** world-space footprint: the shape is an offset of the body, not its position */
@@ -75,41 +83,37 @@ export class Physics {
   }
 
   /** park the body on the boat, ask cannon what she touches, and reap the hits */
-  step(
-    dt: number,
-    x: number,
-    y: number,
-    z: number,
-    vx: number,
-    vz: number,
-  ): ContactHit[] {
-    this.ship.position.set(x, y, z)
-    this.ship.velocity.set(vx, 0, vz)
+  step(dt: number, position: Point, velocity: Point): ContactHit[] {
+    const ship = this.ship
+    ship.position.set(position.x, position.y, position.z)
+    ship.velocity.set(velocity.x, 0, velocity.z)
     this.world.step(FIXED, dt, 3)
 
-    const ship = this.ship
+    // the bodies cannon's narrowphase found overlapping the hull this frame
+    const touched = new Set<CANNON.Body>()
+    for (const contact of this.world.contacts) {
+      if (contact.bi === ship) touched.add(contact.bj)
+      if (contact.bj === ship) touched.add(contact.bi)
+    }
+
     const hits: ContactHit[] = []
     for (const solid of this.solids) {
-      // cannon's narrowphase answers whether the hull overlaps it this frame
-      const inContact = this.world.contacts.some(
-        (c) => (c.bi === ship && c.bj === solid.body) || (c.bj === ship && c.bi === solid.body),
-      )
-      if (!inContact) continue
+      if (!touched.has(solid.body)) continue
 
       // geometry off the boat position we were given: the solver nudges the
       // dynamic body around during the step, so don't read its post-step spot
-      let dx = x - solid.x
-      let dz = z - solid.z
+      const dx = position.x - solid.x
+      const dz = position.z - solid.z
       const distance = Math.hypot(dx, dz)
       const depth = solid.radius + HULL - distance
       if (depth <= 0) continue
 
-      const nudge = distance > 1e-4 ? 1 / distance : 1
-      dx *= nudge
-      dz *= nudge
-      const speed = Math.abs(vx * dx + vz * dz)
+      const scale = distance > 1e-4 ? 1 / distance : 1
+      const nx = dx * scale
+      const nz = dz * scale
+      const speed = Math.abs(velocity.x * nx + velocity.z * nz)
 
-      hits.push({ nx: dx, nz: dz, depth, speed, kind: solid.kind })
+      hits.push({ nx, nz, depth, speed, kind: solid.kind })
     }
     return hits
   }
