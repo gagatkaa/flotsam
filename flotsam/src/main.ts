@@ -24,7 +24,7 @@ import { BoatControls } from './controls/BoatControls'
 import { Ship } from './objects/Ship'
 import { WaveField, BASE_CHOPPY } from './objects/WaveField'
 import { Physics } from './physics/Physics'
-import { Soundscape } from './audio/Soundscape'
+import { Soundscape, type Clip } from './audio/Soundscape'
 import {
   bearingAndRange,
   buildWorld,
@@ -110,6 +110,7 @@ const run = new Run({
   onAshore: showAshore,
   onVisited: raiseFlag,
   onDepart() {
+    sound.leave()
     // a choice can change the boat, so hand the new numbers over and redraw
     ship.applyStats(run.stats)
     renderBuild()
@@ -139,6 +140,13 @@ ship.cameraMount.add(camera)
 const controls = new BoatControls(camera, canvas)
 
 const sound = new Soundscape()
+
+/** the sound each island greets you with as you step ashore, keyed by island id */
+const ARRIVAL_SOUNDS: Partial<Record<string, Clip>> = {
+  wreck: 'bell',
+  gallows: 'door',
+  kitchen: 'market',
+}
 
 // the sea can only begin after a gesture: start it on the very first click or
 // keypress, so it is already breathing by the time the player sets off.
@@ -294,6 +302,8 @@ function showNothingHere(island: Island) {
 
 // ---- arrival, beat one: what the island is, and what you find ashore
 function showTell(event: IslandEvent, island: Island) {
+  const greeting = ARRIVAL_SOUNDS[island.id]
+  if (greeting) sound.arrive(greeting)
   openPanel(
     sceneBlock(event.title, event.telling, event.adventure),
     button('go', 'go ashore', () => run.decide(event, island)),
@@ -348,6 +358,7 @@ function finalTally(home: boolean) {
 
 /** the last page of the story: what happened, the score, and the way back to the start */
 function showEnding(home: boolean, title: string, text: string, log: string[]) {
+  sound.leave()
   const block = sceneBlock(title, text)
   block.append(finalTally(home), button('go', 'set sail again', () => location.reload()))
   openPanel(block, ...(log.length ? [voyageLog(log)] : []))
@@ -376,6 +387,7 @@ function showHome(log: string[]) {
 
 /** the chart is complete: going home is a choice you can make from anywhere */
 function showCharted() {
+  sound.leave()
   renderBuild()
   openPanel(
     sceneBlock(
@@ -825,7 +837,7 @@ function collectFlotsam(sailing: boolean) {
     // food and gold both change how she handles
     ship.applyStats(run.stats)
     toast(toastsEl, `Picked up ${item.loot.label}`, 'info')
-    sound.pickup('chest')
+    sound.play('chest')
   }
 }
 
@@ -874,7 +886,7 @@ function readTally(): Tally {
 
 function updateHud(delta: number) {
   const now = readTally()
-  if (now.pieces > tally.pieces) sound.pickup('map')
+  if (now.pieces > tally.pieces) sound.play('map')
   if (announceChanges(toastsEl, tally, now)) renderBuild()
   tally = now
 

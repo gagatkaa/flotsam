@@ -2,9 +2,29 @@ import seaUrl from '../sounds/sea_sounds.wav?url'
 import hitUrl from '../sounds/boat_hit.wav?url'
 import chestUrl from '../sounds/chest-pickup.mp3?url'
 import mapUrl from '../sounds/map-pickup.mp3?url'
+import bellUrl from '../sounds/bell-sound.mp3?url'
+import doorUrl from '../sounds/door-opening.mp3?url'
+import marketUrl from '../sounds/crab-market.mp3?url'
 
-/** the one-shot sounds for picking things up */
-export type Pickup = 'chest' | 'map'
+/** the one-shot clips: pickups, and the sound each island greets you with */
+const CLIP_URLS = {
+  chest: chestUrl,
+  map: mapUrl,
+  bell: bellUrl,
+  door: doorUrl,
+  market: marketUrl,
+}
+
+export type Clip = keyof typeof CLIP_URLS
+
+/** a clip that is playing, kept so it can be faded out */
+interface Playing {
+  source: AudioBufferSourceNode
+  gain: GainNode
+}
+
+/** how long an island's sound takes to fade away when you leave, in seconds */
+const ARRIVAL_FADE = 0.6
 
 /** the audio graph, created on the first user gesture */
 interface Mixer {
@@ -29,13 +49,16 @@ interface Mixer {
  * colour follows her speed, because there is no file for that layer; and
  * bumping into things replays src/sounds/boat_hit.wav, harder the faster she
  * hits. Hauling wreckage aboard and finding a map piece each have a clip of
- * their own. All gains are ramped with setTargetAtTime, so nothing zips.
+ * their own, and some islands greet you with a sound that fades away when you
+ * leave. All gains are ramped with setTargetAtTime, so nothing zips.
  */
 export class Soundscape {
   private mixer: Mixer | null = null
   private hitBuffer: AudioBuffer | null = null
   private hitSource: AudioBufferSourceNode | null = null
-  private pickupBuffers: Partial<Record<Pickup, AudioBuffer>> = {}
+  private clips: Partial<Record<Clip, AudioBuffer>> = {}
+  /** the island's own sound, while you are ashore */
+  private arrival: Playing | null = null
   /** true once the clips have loaded and the sea is playing */
   private ready = false
 
@@ -107,10 +130,10 @@ export class Soundscape {
     this.hitSource = source
   }
 
-  /** play the sound for picking something up, over the top of everything else */
-  pickup(kind: Pickup) {
-    const buffer = this.pickupBuffers[kind]
-    if (!this.mixer || !buffer) return
+  /** play a clip once, over the top of everything else */
+  play(clip: Clip): Playing | null {
+    const buffer = this.clips[clip]
+    if (!this.mixer || !buffer) return null
     const { ctx, master } = this.mixer
 
     const source = ctx.createBufferSource()
@@ -121,18 +144,29 @@ export class Soundscape {
     gain.connect(master)
     source.onended = () => gain.disconnect()
     source.start()
+    return { source, gain }
+  }
+
+  /** an island's greeting, which lasts only as long as you stay ashore */
+  arrive(clip: Clip) {
+    this.leave()
+    this.arrival = this.play(clip)
+  }
+
+  /** fade out the island's sound, if it is still going */
+  leave() {
+    if (!this.mixer || !this.arrival) return
+    const { source, gain } = this.arrival
+    const now = this.mixer.ctx.currentTime
+    gain.gain.setTargetAtTime(0, now, ARRIVAL_FADE / 4)
+    source.stop(now + ARRIVAL_FADE)
+    this.arrival = null
   }
 
   private async loadClips({ ctx, seaGain }: Mixer) {
     try {
-      const [seaBuffer, hitBuffer, chest, map] = await Promise.all([
-        loadClip(ctx, seaUrl),
-        loadClip(ctx, hitUrl),
-        loadClip(ctx, chestUrl),
-        loadClip(ctx, mapUrl),
-      ])
+      const [seaBuffer, hitBuffer] = await Promise.all([loadClip(ctx, seaUrl), loadClip(ctx, hitUrl)])
       this.hitBuffer = hitBuffer
-      this.pickupBuffers = { chest, map }
 
       const sea = ctx.createBufferSource()
       sea.buffer = seaBuffer
@@ -143,6 +177,13 @@ export class Soundscape {
       this.ready = true
     } catch (err) {
       console.warn('could not load audio', err)
+    }
+
+    // the one-shots load on their own, so one bad file cannot silence the sea
+    for (const [clip, url] of Object.entries(CLIP_URLS) as [Clip, string][]) {
+      loadClip(ctx, url)
+        .then((buffer) => (this.clips[clip] = buffer))
+        .catch((err) => console.warn(`could not load sound: ${clip}`, err))
     }
   }
 }
