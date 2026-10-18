@@ -45,6 +45,22 @@ export function introSheet() {
   return sheet
 }
 
+/** shown between the intro and casting off: the camera rides a rocking deck */
+export function seasickWarning() {
+  const sheet = document.createElement('div')
+  sheet.className = 'prologue warning'
+  sheet.innerHTML = `
+    <p class="eyebrow">before you cast off</p>
+    <h1>Mind the swell</h1>
+    <div class="lede">
+      <p>Your view rides the deck of a small boat, so it rolls and pitches with
+      every wave, and the sea gets rougher the longer you are out there.</p>
+      <p><strong>If you start to feel dizzy, sick or uncomfortable, stop playing
+      and take a break.</strong> Press <b>Esc</b> to pause at any time.</p>
+    </div>`
+  return sheet
+}
+
 /** one page of the log: a title and its paragraphs */
 export function sceneBlock(title: string, ...paragraphs: string[]) {
   const block = document.createElement('div')

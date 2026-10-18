@@ -43,7 +43,7 @@ import { recordBest, scoreVoyage } from './game/score'
 import { Run, type IslandEvent } from './game/run'
 import { describe } from './game/stats'
 import { renderCompass, type CompassMark } from './ui/compass'
-import { button, choiceCard, introSheet, scoreSheet, sceneBlock, voyageLog } from './ui/story'
+import { button, choiceCard, introSheet, scoreSheet, sceneBlock, seasickWarning, voyageLog } from './ui/story'
 import { announceChanges, toast, type Tally } from './ui/toasts'
 
 // ----------------------------------------------------------------------- map
@@ -184,6 +184,7 @@ const loadPassEl = $<HTMLSpanElement>('#load-pass')
 const loadGoldEl = $<HTMLSpanElement>('#load-gold')
 const loadFoodEl = $<HTMLSpanElement>('#load-food')
 const landEl = $<HTMLButtonElement>('#land')
+const landNameEl = $<HTMLElement>('#land-name')
 const toastsEl = $<HTMLDivElement>('#toasts')
 const compassEl = $<HTMLDivElement>('#compass')
 const compass = {
@@ -258,18 +259,24 @@ function applyModal() {
 // ---- opening: the situation, the islands, then cast off.
 // The intro is a page, not a popup: it stays up until Start sailing.
 function showIntro() {
-  chartEl.replaceChildren(
-    introSheet(),
-    button('sail', 'Start sailing', () => {
-      sound.start()
-      run.sail()
-    }),
-  )
+  chartEl.replaceChildren(introSheet(), button('sail', 'Start sailing', showWarning))
 
   chartEl.classList.remove('hidden')
   draftEl.classList.add('hidden')
   overlay.classList.add('hidden')
   document.body.classList.remove('locked')
+}
+
+/** the motion sickness warning, on the same page as the intro, before the boat moves */
+function showWarning() {
+  chartEl.replaceChildren(
+    seasickWarning(),
+    button('sail', 'I understand, set sail', () => {
+      sound.start()
+      run.sail()
+    }),
+  )
+  chartEl.scrollTop = 0
 }
 
 function backToSea() {
@@ -823,6 +830,8 @@ function offerLanding(sailing: boolean) {
       offered = island
     }
   }
+  // name the island on the prompt, but only touch the DOM when the offer changes
+  if (offered && offered !== landingTarget) landNameEl.textContent = offered.name
   landingTarget = offered
 
   landEl.classList.toggle('hidden', !(landingTarget && sailing && !panelIsOpen()))

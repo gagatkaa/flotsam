@@ -106,38 +106,58 @@ body {
   pointer-events: none;
 }
 
-/* the offer to come ashore: appears when you coast within range of an
-   island, and does nothing until you press it */
+/* the offer to come ashore: appears just below the middle of the screen
+   when you coast within range of an island, and does nothing until you
+   press E (or click it). It pulses gently so it cannot be missed. */
 #land {
   position: fixed;
-  top: max(16px, env(safe-area-inset-top, 0px));
+  top: 64%;
   left: 50%;
-  transform: translateX(-50%);
+  /* "translate", not "transform", so the rise animation cannot knock it off centre */
+  translate: -50% -50%;
   z-index: 4;
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  padding: 10px 18px;
-  border: 1px solid rgba(216, 178, 94, 0.55);
+  gap: 14px;
+  padding: 14px 26px 14px 16px;
+  border: 1px solid var(--brass);
   border-radius: var(--r-pill);
-  background: rgba(6, 20, 30, 0.82);
+  background: rgba(6, 20, 30, 0.86);
   backdrop-filter: blur(6px);
-  font-family: var(--sans);
-  font-size: var(--fs-small);
-  letter-spacing: 0.02em;
-  color: rgba(239, 231, 214, 0.9);
+  box-shadow: 0 0 0 0 rgba(216, 178, 94, 0.5), 0 12px 30px rgba(0, 0, 0, 0.45);
+  font-family: var(--serif);
+  font-size: var(--fs-strong);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  text-align: left;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
   cursor: pointer;
   touch-action: manipulation;
+  animation:
+    rise 220ms ease-out,
+    beckon 1.8s ease-in-out 220ms infinite;
 }
 
-#land b {
-  padding: 2px 8px;
-  border: 1px solid rgba(216, 178, 94, 0.7);
-  border-radius: 7px;
+#land .key {
+  display: grid;
+  place-items: center;
+  width: 2.1em;
+  height: 2.1em;
+  border-radius: 9px;
+  background: var(--brass);
   font-family: var(--mono);
-  font-size: var(--fs-chip);
-  font-weight: 500;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--charcoal);
+  text-shadow: none;
+}
+
+#land em {
+  display: block;
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: var(--fs-small);
+  letter-spacing: 0.04em;
   color: var(--brass);
 }
 
@@ -146,14 +166,24 @@ body {
 }
 
 #land:focus-visible {
-  border-color: var(--brass);
-  outline: none;
+  outline: 2px solid var(--brass);
+  outline-offset: 3px;
 }
 
 @media (hover: hover) {
   #land:hover {
-    border-color: var(--brass);
-    background: rgba(10, 30, 44, 0.92);
+    background: rgba(10, 30, 44, 0.94);
+  }
+}
+
+/* a soft ring that swells out from the prompt and fades */
+@keyframes beckon {
+  0% {
+    box-shadow: 0 0 0 0 rgba(216, 178, 94, 0.5), 0 12px 30px rgba(0, 0, 0, 0.45);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 16px rgba(216, 178, 94, 0), 0 12px 30px rgba(0, 0, 0, 0.45);
   }
 }
 
@@ -1407,4 +1437,23 @@ body {
   font-style: normal;
   text-align: right;
   color: #1c5c38;
+}
+
+/* ----------------------------------------------------------------- warning */
+.prologue.warning {
+  max-width: 640px;
+}
+
+.prologue.warning strong {
+  font-weight: 600;
+  color: var(--charcoal);
+}
+
+.prologue.warning .lede b {
+  padding: 1px 7px;
+  border: 1px solid var(--paper-edge);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.85em;
+  font-weight: 500;
 }
