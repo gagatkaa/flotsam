@@ -29,13 +29,18 @@ your timber; grind against the rocks too long and the sea takes you.
 - **The Sleeping Giant** — the island is the bones of something enormous, with a shrine in its rib
   cage. Take the chart and the helm upgrade, cut a rib for your hull, or find the castaway in the skull.
 
-In among the rocks between the islands, wreckage floats on the swell: crates of food, barrels of coin and loose planks
-to patch the hull. Sail into them to haul them aboard. The crew eats a day's food every 20 seconds at
-sea, and a hungry crew sails slowly and breaks things. Coin buys help at the Crab Market, and what you
-do on one island can open a new choice on another. A glowing beacon stands over every island you
-have not landed on yet.
+In among the rocks between the islands, wreckage floats on the swell: crates of food, barrels of coin
+and loose planks to patch the hull. Sail into them to haul them aboard. The crew eats a day's food
+every 20 seconds at sea, and a hungry crew sails slowly and breaks things. Coin buys help at the Crab
+Market, and what you do on one island can open a new choice on another. A glowing beacon stands over
+every island you have not made a choice on yet, and you can always walk back to the boat and return
+later.
 
-When the voyage ends, at home or on the bottom, you get a score and a title for the run.
+Three of the islands greet you with their own sound as you land (the bell, the lighthouse door, the
+market crowd), and picking up wreckage or a map piece has a sound of its own.
+
+When the voyage ends, at home or on the bottom, you get a score and a title for the run. Before the
+first voyage the game warns that the view rocks with the waves, and asks anyone who feels dizzy to stop.
 
 Four islands, four chart pieces. The whole chart is a map home: there is no homeward island to find —
 finish the map and you can sail for port whenever you like.
@@ -58,9 +63,15 @@ fly-camera is dropped in favour of the pointer-locked game camera.
 | fixed `SEA_CHOPPY` | uniform, raised by the map pieces you hold — the sea chops up as the voyage goes on |
 | (nothing) | `wake(p, shipPos, shipDir, shipSpeed)` — the boat carves a wake into the field: a trench behind her, a bow wave ahead, and a spreading chevron of foam |
 
-The wake takes three extra uniforms (`uShipPos`, `uShipDir`, `uShipSpeed`) into the raymarch, merged
-into `map()`, used both for the coarse raymarch and the detailed normals, so the trench is real relief that the
-sun and the fog light up — not a flat texture. The hull rides the same dent in the CPU mirror.
+The wake is not a separate shader: it is one extra function, `wake()`, added inside the ported
+Seascape shader. It takes three extra uniforms (`uShipPos`, `uShipDir`, `uShipSpeed`) and is
+subtracted from the height in `map()`, which both the raymarch and the surface normals use, so the
+trench is real relief that the sun lights up rather than a flat texture. Each part of the wake only
+exists on its own side of the boat and fades with distance. The hull rides the same dent in the CPU
+mirror.
+
+Everything else in the scene (the boat, islands, rocks, wreckage and beacons) uses three.js's
+built-in node materials, not shaders of our own.
 
 Porting gotchas worth knowing: WGSL function parameters are immutable (`getSkyColor` needs a local
 copy), `out vec3 p` becomes a `vec4f` return, `let` is reassigned inside the raymarch loop so it has
@@ -76,10 +87,13 @@ rocks use it to keep their heads above water. Keep `WaveField.time` and `.choppy
 fields in sync with the `iTime`, choppy and ship uniforms or the boat will drift off the visible
 waves.
 
-Collision is real: `src/physics/Physics.ts` wraps **cannon-es**, with the hull as three spheres on a
-dynamic body and each island and rock as static bodies. cannon's closest-point solver reports the
-contacts — rocks grind the hull and add damage when you hit them fast, and the shore slides the hull
-along instead of letting you sail through the island.
+Collision uses **cannon-es** (`src/physics/Physics.ts`). The hull is three spheres on one body, and
+each island and rock is a static body. cannon-es is used only to detect contact: each frame the hull
+body is placed where the boat is, the world is stepped, and its contact list says which island or rock
+the hull is overlapping. How far to push the boat back out, and in which direction, is then worked out
+in our own code from the positions. The boat's movement comes from the sailing code in `Ship.ts`, not
+from cannon-es. A rock costs a chunk of health once per hit (more the faster you hit it), and the
+shore pushes the hull along instead of letting it sail through the island.
 
 ## Controls
 
@@ -90,7 +104,7 @@ along instead of letting you sail through the island.
 | `A` / `D` | rudder left / right |
 | `E` | go ashore when an island waves you in |
 | mouse | look around while the pointer is locked |
-| `Esc` | release the mouse / close the pause |
+| `Esc` | release the mouse / close the pause / leave an island without choosing |
 
 Sailing close to an island offers the landing; every choice ashore shows what it gives and what it costs. The health gauge in
 the HUD is the hull — at zero, the sea keeps you.
@@ -147,10 +161,17 @@ flotsam/
 
 ## Extra marks
 
-- **Ship wake** — a third wave layer added to the original seascape: a hull-bound trench, bow ridge
-  and chevron foam, identical on the raymarched GPU surface and the CPU collision surface.
-- **cannon-es physics** — the boat no longer vacuums up obstacles with distance checks; a dedicated
-  physics world resolves contact normals, grind damage, and shore-sliding each frame.
+What the project does and does not cover, as it stands:
+
+- **Interaction beyond looking around:** yes. Sailing with throttle and rudder, landing on islands,
+  choices that cost and give things and unlock others, pickups, food, and a score.
+- **Physics:** yes, through cannon-es, used for collision detection with the islands and rocks (see
+  [The ship](#the-ship) for exactly what it does and does not do).
+- **Multiple shaders:** no. There is one custom shader, the ported Seascape. The wake is an addition
+  inside it, not a second shader.
+- **Additional WebGPU libraries:** no. TSL is part of three.js, and cannon-es is not a WebGPU library.
+- **Own Blender models with baking / Blender animations:** no. The boat is an FBX model loaded with
+  three's `FBXLoader`; it has no baked textures and no animations.
 
 ## Credits
 
