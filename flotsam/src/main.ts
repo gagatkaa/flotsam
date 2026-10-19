@@ -39,6 +39,7 @@ import {
   tintCss,
   type Island,
 } from './game/world'
+import { Daylight, SUN_YAW } from './game/daylight'
 import { eventFor } from './game/events'
 import { PICKUP_RANGE } from './game/flotsam'
 import { recordBest, scoreVoyage } from './game/score'
@@ -79,7 +80,8 @@ renderer.toneMapping = THREE.NoToneMapping
 await renderer.init()
 
 const scene = new THREE.Scene()
-scene.fog = new THREE.FogExp2(0x9fc4dd, 0.0035)
+const haze = new THREE.FogExp2(0x9fc4dd, 0.0035)
+scene.fog = haze
 
 // ---------------------------------------------------------------- ocean shader
 // "Seascape" by Alexander Alekseev aka TDM - https://www.shadertoy.com/view/Ms2SD1
@@ -94,6 +96,15 @@ const uShipPos = uniform(new THREE.Vector2(0, 0))
 const uShipDir = uniform(new THREE.Vector2(0, -1))
 const uShipSpeed = uniform(0)
 
+/**
+ * The time of day, which the map pieces move on from noon to sunset. Its sun
+ * direction is the one for everything, so the glitter on the sea, the light on
+ * the boat and the disc in the sky all agree.
+ */
+const daylight = new Daylight()
+const uSunDir = uniform(daylight.direction)
+const uDusk = uniform(0)
+
 // three renders scene.backgroundNode on a skybox sphere with its translation
 // stripped, so positionWorld is the world space view ray of this fragment.
 // The arguments are matched to the WGSL parameters by name. TypeScript cannot
@@ -107,6 +118,8 @@ const seaColor = seascape({
   shipPos: uShipPos,
   shipDir: uShipDir,
   shipSpeed: uShipSpeed,
+  sunDir: uSunDir,
+  dusk: uDusk,
 }) as THREE.Node<'vec3'>
 
 // Seascape outputs display-ready (sRGB) colours, like every Shadertoy shader.
@@ -170,11 +183,13 @@ window.addEventListener('pointerdown', wakeAudio, { once: true })
 window.addEventListener('keydown', wakeAudio, { once: true })
 
 // ---------------------------------------------------------- lighting + world
-const sun = new THREE.DirectionalLight(0xfff2d8, 2.4)
-sun.position.set(-40, 14, -20)
+// both lights take their colour, strength and direction from the daylight
+// every frame (see updateSky)
+const sun = new THREE.DirectionalLight()
 scene.add(sun)
 
-scene.add(new THREE.HemisphereLight(0xbfe3ff, 0x1d4a63, 1.1))
+const skyLight = new THREE.HemisphereLight()
+scene.add(skyLight)
 
 const physics = new Physics()
 // every island is a copy of the Blender island, so it has to be loaded first
@@ -372,9 +387,12 @@ function finalTally(home: boolean) {
   return scoreSheet(score, recordBest(score.total))
 }
 
-/** sunk, you rise over the spot where she went down; home, you watch her sail on */
+/**
+ * Sunk, you rise over the spot where she went down. Home, you drop in astern of
+ * her, low enough that the sun she is sailing for is in the frame above her.
+ */
 const SUNK_SHOT: Shot = { radius: 22, height: 9, sweep: 1.1, fov: 55 }
-const HOME_SHOT: Shot = { radius: 34, height: 14, sweep: -1.4, fov: 50 }
+const HOME_SHOT: Shot = { radius: 20, height: 4, sweep: 0, bearing: SUN_YAW, fov: 55 }
 /** seconds the closing shot plays before the last page of the story comes up */
 const SUNK_DELAY = 7
 const HOME_DELAY = 6
@@ -433,7 +451,7 @@ function beginEnding(home: boolean, log: string[]) {
   controls.enabled = false
   if (controls.isLocked) controls.unlock()
 
-  endingCamera.start(updateEndingFocus(), clearShot(home ? HOME_SHOT : SUNK_SHOT))
+  endingCamera.start(updateEndingFocus(), home ? HOME_SHOT : clearShot(SUNK_SHOT))
 
   let shown = false
   const show = () => {
@@ -733,6 +751,7 @@ function animate() {
 
   controls.update(delta)
   updateSea(elapsed)
+  updateSky(delta)
 
   // no throttle and no steering unless you are actually sailing and holding
   // the tiller. Without the isLocked check, W drives the boat from the pause menu.
@@ -776,15 +795,37 @@ function updateSea(elapsed: number) {
   waves.shipSpeed = wakeSpeed
 }
 
+/**
+ * Every piece of the map moves the clock on, so the afternoon wears away as the
+ * chart fills in and the voyage ends at sunset. The sky, the lights and the haze
+ * all follow the one clock.
+ */
+function updateSky(delta: number) {
+  daylight.update(delta, run.pieces.size)
+  // uSunDir holds daylight.direction itself, so it is already up to date
+  uDusk.value = daylight.hour * daylight.hour
+
+  // a directional light shines from its position towards the origin, so this
+  // lights the boat from where the sun is drawn
+  sun.position.copy(daylight.direction).multiplyScalar(50)
+  sun.color.copy(daylight.sunColor)
+  sun.intensity = daylight.sunIntensity
+  skyLight.color.copy(daylight.skyColor)
+  skyLight.groundColor.copy(daylight.groundColor)
+  skyLight.intensity = daylight.skyIntensity
+  haze.color.copy(daylight.hazeColor)
+}
+
 function steerShip(delta: number, elapsed: number, sailing: boolean) {
   const modal = applyModal()
   const atHelm = sailing && !modal
   compassEl.classList.toggle('hidden', !atHelm)
-  // home, nobody is at the helm, but she keeps sailing on under the last page
+  // home, nobody is at the helm, but she turns for the sun and sails on into it
   const home = run.phase === 'home'
   if (home) ship.hold = false
   const throttle = atHelm ? controls.throttle : home ? 0.35 : 0
-  ship.update(delta, waves, throttle, atHelm ? controls.rudder : 0)
+  const rudder = atHelm ? controls.rudder : home ? helmToward(SUN_YAW) : 0
+  ship.update(delta, waves, throttle, rudder)
   if (atHelm) passTime(delta)
 
   // becalmed, the wind sets you down and you can do nothing about it. A wreck
@@ -794,6 +835,13 @@ function steerShip(delta: number, elapsed: number, sailing: boolean) {
     ship.position.x += Math.sin(elapsed * 0.21) * push * delta
     ship.position.z += Math.cos(elapsed * 0.17) * push * delta
   }
+}
+
+/** the rudder that swings her bow round to this heading, easing off as she comes onto it */
+function helmToward(yaw: number) {
+  const off = Math.atan2(Math.sin(yaw - ship.yaw), Math.cos(yaw - ship.yaw))
+  // positive rudder turns her to starboard, which lowers her yaw
+  return THREE.MathUtils.clamp(-off * 1.5, -1, 1)
 }
 
 /** the clock runs while you sail: the score counts it, and the crew gets hungry */
@@ -840,8 +888,9 @@ function collide(delta: number) {
     }
   }
 
-  // nothing hurts or sounds while a menu or a panel has the screen
-  const clearDeck = !isPaused() && !panelIsOpen()
+  // nothing hurts or sounds while a menu or a panel has the screen, or once
+  // she is home: sailing into the sun, a rock cannot undo the ending
+  const clearDeck = !isPaused() && !panelIsOpen() && run.phase !== 'home'
 
   // the hull-slam sounds on first contact and not again until she is clear
   if (touching && !wasTouching && clearDeck) sound.bump(hardestContact)

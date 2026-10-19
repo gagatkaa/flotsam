@@ -59,12 +59,37 @@ fn specular( n: vec3f, l: vec3f, e: vec3f, s: f32 ) -> f32 {
 
 // sky
 // NOTE: WGSL function parameters are immutable, so the GLSL `e.y = ...` needs a local copy.
-fn getSkyColor( e: vec3f ) -> vec3f {
+// `dusk` (our addition) runs from 0 at noon to 1 at sunset: the sky goes from the
+// original blue to a deep evening blue overhead burning orange at the horizon
+fn getSkyColor( e: vec3f, dusk: f32 ) -> vec3f {
 
 	var dir = e;
 	dir.y = ( max( dir.y, 0.0 ) * 0.8 + 0.2 ) * 0.8;
 
-	return vec3f( pow( 1.0 - dir.y, 2.0 ), 1.0 - dir.y, 0.6 + ( 1.0 - dir.y ) * 0.4 ) * 1.1;
+	let day = vec3f( pow( 1.0 - dir.y, 2.0 ), 1.0 - dir.y, 0.6 + ( 1.0 - dir.y ) * 0.4 ) * 1.1;
+
+	let horizon = pow( 1.0 - clamp( e.y, 0.0, 1.0 ), 5.0 );
+	let evening = mix( vec3f( 0.2, 0.24, 0.45 ), vec3f( 1.25, 0.58, 0.28 ), horizon );
+
+	return mix( day, evening, dusk );
+
+}
+
+// the sun the sea's highlights come from (our addition): a hard white disc, a
+// warm halo hugging it, and a wide faint glow that warms that side of the sky
+// warm white at noon, orange and much wider as it sets
+fn getSun( e: vec3f, l: vec3f, dusk: f32 ) -> vec3f {
+
+	let d = max( dot( e, l ), 0.0 );
+
+	let disc = smoothstep( 0.99955, 0.9998, d );
+	let halo = pow( d, 900.0 ) * 0.9 + pow( d, 90.0 ) * 0.35;
+	let glow = pow( d, 6.0 ) * mix( 0.18, 0.55, dusk );
+
+	let discColor = mix( vec3f( 1.6, 1.5, 1.3 ), vec3f( 1.8, 1.0, 0.45 ), dusk );
+	let haloColor = mix( vec3f( 1.0, 0.82, 0.55 ), vec3f( 1.0, 0.45, 0.18 ), dusk );
+
+	return discColor * disc + haloColor * ( halo + glow );
 
 }
 
@@ -155,12 +180,12 @@ fn map( p: vec3f, iterations: i32, seaTime: f32, choppy0: f32, shipPos: vec2f, s
 
 }
 
-fn getSeaColor( p: vec3f, n: vec3f, l: vec3f, eye: vec3f, dist: vec3f ) -> vec3f {
+fn getSeaColor( p: vec3f, n: vec3f, l: vec3f, eye: vec3f, dist: vec3f, dusk: f32 ) -> vec3f {
 
 	var fresnel = clamp( 1.0 - dot( n, - eye ), 0.0, 1.0 );
 	fresnel = min( fresnel * fresnel * fresnel, 0.5 );
 
-	let reflected = getSkyColor( reflect( eye, n ) );
+	let reflected = getSkyColor( reflect( eye, n ), dusk );
 	let refracted = SEA_BASE + diffuse( n, l, 80.0 ) * SEA_WATER_COLOR * 0.12;
 
 	var color = mix( refracted, reflected, fresnel );
@@ -168,7 +193,9 @@ fn getSeaColor( p: vec3f, n: vec3f, l: vec3f, eye: vec3f, dist: vec3f ) -> vec3f
 	let atten = max( 1.0 - dot( dist, dist ) * 0.001, 0.0 );
 	color += SEA_WATER_COLOR * ( p.y - SEA_HEIGHT ) * 0.18 * atten;
 
-	color += specular( n, l, eye, 600.0 * inverseSqrt( dot( dist, dist ) ) );
+	// the glitter takes the colour of the sun it is reflecting
+	let glint = mix( vec3f( 1.0 ), vec3f( 1.3, 0.75, 0.4 ), dusk );
+	color += glint * specular( n, l, eye, 600.0 * inverseSqrt( dot( dist, dist ) ) );
 
 	return color;
 
@@ -225,18 +252,17 @@ fn heightMapTracing( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, shipPos
 }
 
 // `dir` replaces the shadertoy's built-in fly camera, `ori` is the real camera position.
-fn getPixel( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, epsScale: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec3f {
+fn getPixel( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, epsScale: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32, l: vec3f, dusk: f32 ) -> vec3f {
 
 	let hit = heightMapTracing( ori, dir, seaTime, choppy0, shipPos, shipDir, shipSpeed );
 	let p = hit.yzw;
 	let dist = p - ori;
 
 	let n = getNormal( p, dot( dist, dist ) * epsScale, seaTime, choppy0, shipPos, shipDir, shipSpeed );
-	let l = normalize( vec3f( 0.0, 1.0, 0.8 ) );
 
 	return mix(
-		getSkyColor( dir ),
-		getSeaColor( p, n, l, dir, dist ),
+		getSkyColor( dir, dusk ) + getSun( dir, l, dusk ),
+		getSeaColor( p, n, l, dir, dist, dusk ),
 		// GLSL: pow( smoothstep( 0.0, -0.02, dir.y ), 0.2 ) - written with ascending
 		// edges because WGSL leaves smoothstep() undefined when low >= high
 		pow( 1.0 - smoothstep( - 0.02, 0.0, dir.y ), 0.2 )

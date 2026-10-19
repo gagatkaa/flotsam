@@ -8,6 +8,12 @@ export interface Shot {
   height: number
   /** how far it swings round the boat on the way out, in radians */
   sweep: number
+  /**
+   * Where to end up instead, as a fixed angle round the boat (the same angle as
+   * Math.atan2(x, z) of the camera's offset from her). Held there, it does not
+   * circle, so a shot that has to keep something in frame stays put.
+   */
+  bearing?: number
   /** the lens it settles on: narrower than the deck's, so the boat fills more of the frame */
   fov: number
 }
@@ -66,7 +72,12 @@ export class EndingCamera {
     this.time += delta
 
     const out = THREE.MathUtils.smootherstep(this.time, 0, PULL_OUT)
-    const angle = this.startAngle + this.shot.sweep * out + this.time * ORBIT
+    const { bearing } = this.shot
+    // to a fixed bearing, the short way round; otherwise sweep, then keep circling
+    const angle =
+      bearing === undefined
+        ? this.startAngle + this.shot.sweep * out + this.time * ORBIT
+        : this.startAngle + Math.atan2(Math.sin(bearing - this.startAngle), Math.cos(bearing - this.startAngle)) * out
     const radius = THREE.MathUtils.lerp(this.startRadius, this.shot.radius, out)
     const height = THREE.MathUtils.lerp(this.startHeight, this.shot.height, out)
 
