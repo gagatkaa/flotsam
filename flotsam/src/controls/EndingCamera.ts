@@ -14,6 +14,8 @@ export interface Shot {
    * circle, so a shot that has to keep something in frame stays put.
    */
   bearing?: number
+  /** moves a camera position that has ended up inside something back out into the open */
+  keepClear?: (position: THREE.Vector3) => void
   /** the lens it settles on: narrower than the deck's, so the boat fills more of the frame */
   fov: number
 }
@@ -86,6 +88,7 @@ export class EndingCamera {
       focus.y + height,
       focus.z + Math.cos(angle) * radius,
     )
+    this.shot.keepClear?.(this.camera.position)
 
     this.look.lookAt(this.camera.position, focus, this.up)
     this.lookQuat.setFromRotationMatrix(this.look)

@@ -411,26 +411,48 @@ function updateEndingFocus() {
 function clearShot(shot: Shot): Shot {
   const from = camera.getWorldPosition(new THREE.Vector3())
   const angle = Math.atan2(from.x - ship.position.x, from.z - ship.position.z)
-  const point = new THREE.Vector3()
-
-  const room = (sweep: number) => {
-    let least = Infinity
-    for (const k of [0.4, 0.7, 1]) {
-      point.set(
-        ship.position.x + Math.sin(angle + sweep * k) * shot.radius * k,
-        0,
-        ship.position.z + Math.cos(angle + sweep * k) * shot.radius * k,
-      )
-      for (const solid of [...world.islands, ...world.hazards]) {
-        least = Math.min(least, flatDistance(point, solid.position) - solid.radius)
-      }
-    }
-    return least
-  }
 
   const sweeps = [shot.sweep, -shot.sweep, shot.sweep + 1.6, -shot.sweep - 1.6]
-  const best = sweeps.reduce((a, b) => (room(b) > room(a) ? b : a))
-  return { ...shot, sweep: best }
+  const best = sweeps.reduce((a, b) =>
+    roomAlong(angle + b, shot.radius, angle) > roomAlong(angle + a, shot.radius, angle) ? b : a,
+  )
+  return { ...shot, sweep: best, keepClear }
+}
+
+/**
+ * Home, the camera wants to be astern of her with the sun ahead. If a shore or
+ * a rock is in that spot, it settles a little to one side or the other instead,
+ * as close to dead astern as the open water allows.
+ */
+function clearHomeShot(shot: Shot): Shot {
+  const ideal = shot.bearing ?? 0
+  for (const step of [0, 1, -1, 2, -2, 3, -3, 4, -4]) {
+    const bearing = ideal + step * 0.35
+    if (roomAlong(bearing, shot.radius) > CAMERA_ROOM) return { ...shot, bearing, keepClear }
+  }
+  return { ...shot, keepClear }
+}
+
+/** open water around the camera's way out to this bearing and distance from the boat */
+function roomAlong(bearing: number, radius: number, from = bearing) {
+  let least = Infinity
+  for (const k of [0.4, 0.7, 1]) {
+    const a = from + (bearing - from) * k
+    const near = physics.nearest(ship.position.x + Math.sin(a) * radius * k, ship.position.z + Math.cos(a) * radius * k)
+    least = Math.min(least, near.gap)
+  }
+  return least
+}
+
+/** how much open water the closing camera keeps between itself and any shore or rock */
+const CAMERA_ROOM = 6
+
+/** if the camera has drifted into an island or a rock, move it straight back out */
+function keepClear(position: THREE.Vector3) {
+  const near = physics.nearest(position.x, position.z)
+  if (near.gap >= CAMERA_ROOM) return
+  position.x += near.nx * (CAMERA_ROOM - near.gap)
+  position.z += near.nz * (CAMERA_ROOM - near.gap)
 }
 
 /**
@@ -451,7 +473,7 @@ function beginEnding(home: boolean, log: string[]) {
   controls.enabled = false
   if (controls.isLocked) controls.unlock()
 
-  endingCamera.start(updateEndingFocus(), home ? HOME_SHOT : clearShot(SUNK_SHOT))
+  endingCamera.start(updateEndingFocus(), home ? clearHomeShot(HOME_SHOT) : clearShot(SUNK_SHOT))
 
   let shown = false
   const show = () => {
@@ -824,7 +846,7 @@ function steerShip(delta: number, elapsed: number, sailing: boolean) {
   const home = run.phase === 'home'
   if (home) ship.hold = false
   const throttle = atHelm ? controls.throttle : home ? 0.35 : 0
-  const rudder = atHelm ? controls.rudder : home ? helmToward(SUN_YAW) : 0
+  const rudder = atHelm ? controls.rudder : home ? helmToward(homeHeading()) : 0
   ship.update(delta, waves, throttle, rudder)
   if (atHelm) passTime(delta)
 
@@ -835,6 +857,31 @@ function steerShip(delta: number, elapsed: number, sailing: boolean) {
     ship.position.x += Math.sin(elapsed * 0.21) * push * delta
     ship.position.z += Math.cos(elapsed * 0.17) * push * delta
   }
+}
+
+/** how close, in metres, a shore or rock has to be before she bears away from it */
+const GIVE_WAY = 22
+
+/**
+ * Home, she makes for the sun, but the last piece is usually won on an island,
+ * so the sun can lie straight through it. Near a shore or rock she leans away
+ * from it and round it, harder the closer it is, and comes back onto the sun
+ * once she is in open water.
+ */
+function homeHeading() {
+  let x = -Math.sin(SUN_YAW)
+  let z = -Math.cos(SUN_YAW)
+
+  const near = physics.nearest(ship.position.x, ship.position.z)
+  const lean = THREE.MathUtils.clamp(1 - near.gap / GIVE_WAY, 0, 1) * 2.5
+  if (lean > 0) {
+    // round it on whichever side is nearer the sun, so she never stalls
+    // facing a shore with the sun pulling one way and the rocks the other
+    const side = -near.nz * x + near.nx * z >= 0 ? 1 : -1
+    x += (near.nx - near.nz * side) * lean
+    z += (near.nz + near.nx * side) * lean
+  }
+  return Math.atan2(-x, -z)
 }
 
 /** the rudder that swings her bow round to this heading, easing off as she comes onto it */

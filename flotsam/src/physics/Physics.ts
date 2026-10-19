@@ -82,6 +82,26 @@ export class Physics {
     this.world.addBody(body)
   }
 
+  /**
+   * The nearest shore or rock to a point on the water: how much open water lies
+   * between them (negative inside it), and which way is away from it. Used to
+   * steer round things and keep the camera out of them, not for collisions.
+   */
+  nearest(x: number, z: number) {
+    const result = { gap: Infinity, nx: 0, nz: 0 }
+    for (const solid of this.solids) {
+      const dx = x - solid.x
+      const dz = z - solid.z
+      const distance = Math.hypot(dx, dz) || 1e-6
+      const gap = distance - solid.radius
+      if (gap >= result.gap) continue
+      result.gap = gap
+      result.nx = dx / distance
+      result.nz = dz / distance
+    }
+    return result
+  }
+
   /** park the body on the boat, ask cannon what she touches, and reap the hits */
   step(dt: number, position: Point, velocity: Point): ContactHit[] {
     const ship = this.ship
