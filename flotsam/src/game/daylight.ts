@@ -1,31 +1,27 @@
 import * as THREE from 'three/webgpu'
 import { CHART_PIECES } from './world'
 
-// The voyage runs from noon to sunset: every map piece moves the clock on.
 
-/** sun elevation in degrees */
+
 const NOON_ELEVATION = 55
 const SUNSET_ELEVATION = 3
 
-/** the sun keeps one bearing all day */
 const SUN_AZIMUTH = Math.atan2(-2, -1)
 
-/** how quickly the sky catches up with a new piece */
+
 const CATCH_UP = 0.35
 
-/** the boat heading that points her bow at the sun */
 export const SUN_YAW = Math.atan2(-Math.sin(SUN_AZIMUTH), -Math.cos(SUN_AZIMUTH))
 
-/** [noon, sunset] */
+
 const SUN_LIGHT = [new THREE.Color(0xfff2d8), new THREE.Color(0xff9a55)]
 const SKY_LIGHT = [new THREE.Color(0xbfe3ff), new THREE.Color(0xffb08a)]
 const GROUND_LIGHT = [new THREE.Color(0x1d4a63), new THREE.Color(0x2c2440)]
 const HAZE = [new THREE.Color(0x9fc4dd), new THREE.Color(0xd99a7a)]
 
 export class Daylight {
-  /** 0 at noon, 1 at sunset */
+
   hour = 0
-  /** towards the sun */
   readonly direction = new THREE.Vector3()
   readonly sunColor = new THREE.Color()
   readonly skyColor = new THREE.Color()
@@ -49,7 +45,6 @@ export class Daylight {
     const elevation = THREE.MathUtils.lerp(NOON_ELEVATION, SUNSET_ELEVATION, t)
     this.direction.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - elevation), SUN_AZIMUTH)
 
-    // colours hold through the afternoon and turn fast near the end
     const warm = t * t
     this.sunColor.lerpColors(SUN_LIGHT[0], SUN_LIGHT[1], warm)
     this.skyColor.lerpColors(SKY_LIGHT[0], SKY_LIGHT[1], warm)

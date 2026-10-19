@@ -5,24 +5,15 @@ export type Phase = 'intro' | 'sailing' | 'telling' | 'ashore' | 'charted' | 'ho
 
 export interface Choice {
   text: string
-  /** shown on the card before it is picked */
   preview: string
-  /** the line added to the voyage log once it is picked */
   outcome: string
   gain?: Card
-  /** id of a card to remove from the deck */
   lose?: string
-  /** hull damage, before frailty */
   damage?: number
-  /** the chart piece this choice gives; omit it and the island gives nothing */
   piece?: string
-  /** a flag other islands can read */
   sets?: string
-  /** only offered once this flag is set */
   requires?: string
-  /** hidden once this flag is set */
   blockedBy?: string
-
   crewDelta?: number
   passengersDelta?: number
   goldDelta?: number
@@ -31,9 +22,7 @@ export interface Choice {
 
 export interface IslandEvent {
   title: string
-  /** what the island is, before you set foot on it */
   telling: string
-  /** what you find ashore */
   adventure: string
   choices: Choice[]
 }
@@ -43,7 +32,6 @@ export interface RunEvents {
   onTell(event: IslandEvent, island: Island): void
   onAshore(event: IslandEvent, island: Island): void
   onVisited(island: Island): void
-  /** returns whether the boat is still afloat */
   onDamage(amount: number): boolean
   onCharted(): void
   onHome(log: string[]): void
@@ -61,10 +49,8 @@ export class Run {
   passengers = STARTING_LOAD.passengers
   gold = STARTING_LOAD.gold
   provisions = STARTING_LOAD.provisions
-  /** seconds spent at the helm, for the closing score */
   sailTime = 0
 
-  /** the island you are standing on, between landing and choosing */
   private ashoreAt: Island | null = null
 
   private readonly events: RunEvents
@@ -91,7 +77,6 @@ export class Run {
     this.gold += gold
   }
 
-  /** returns false if there was nothing left to eat */
   eat() {
     if (this.provisions === 0) return false
     this.provisions--
@@ -115,7 +100,6 @@ export class Run {
     this.events.onTell(event, island)
   }
 
-  /** back to the boat without choosing; the island keeps its story for later */
   leave() {
     if (this.phase !== 'telling' && this.phase !== 'ashore') return
     this.ashoreAt = null
@@ -160,7 +144,6 @@ export class Run {
     this.gold = Math.max(0, this.gold + (choice.goldDelta ?? 0))
     this.provisions = Math.max(0, this.provisions + (choice.provisionsDelta ?? 0))
 
-    // a hull that gave out or nobody left to sail her
     if (!afloat || this.crew === 0) {
       this.sink()
       return

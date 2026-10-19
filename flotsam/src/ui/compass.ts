@@ -1,4 +1,3 @@
-/** degrees of horizon shown on each side of the heading */
 const COMPASS_HALF = 130
 const CARDINALS = ['N', 'E', 'S', 'W']
 const HEADING_WORDS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
@@ -8,7 +7,6 @@ export interface CompassMark {
   bearing: number
   range: number
   spent: boolean
-  /** the nearest island still to visit */
   target: boolean
   tint: string
 }
@@ -21,7 +19,6 @@ export interface CompassElements {
 
 const wrap360 = (degrees: number) => ((degrees % 360) + 360) % 360
 
-/** a heading-up tape: the notch in the middle is where you are looking */
 export function renderCompass({ tape, head, word }: CompassElements, heading: number, marks: CompassMark[]) {
   const width = tape.clientWidth || 320
   const pxPerDeg = width / (COMPASS_HALF * 2)
@@ -43,11 +40,9 @@ export function renderCompass({ tape, head, word }: CompassElements, heading: nu
 
   const islands: string[] = []
   for (const mark of marks) {
-    // -180..180 relative to the heading
     const offset = ((mark.bearing - heading + 540) % 360) - 180
     if (Math.abs(offset) > COMPASS_HALF + 5) continue
 
-    // the target's green and the dimming of spent islands override the tint
     const tinted = !mark.spent && !mark.target
     const style = `left:${xFor(offset)}px${tinted ? `;color:${mark.tint}` : ''}`
     islands.push(

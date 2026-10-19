@@ -5,7 +5,6 @@ export interface Loot {
   label: string
   provisions?: number
   gold?: number
-  /** hull points patched back on */
   repair?: number
 }
 
@@ -17,7 +16,6 @@ export interface Flotsam {
   loot: Loot
   position: THREE.Vector3
   mesh: THREE.Object3D
-  /** radians per second */
   spin: number
   collected: boolean
 }
@@ -26,10 +24,8 @@ export const PICKUP_RANGE = 3.4
 
 const COUNT = 28
 
-/** how far from a rock wreckage settles: inside the reef, but clear of the stone */
 const REEF_GAP = { min: 4, max: 13 }
 
-/** wreckage in the gaps between the rocks, never on a beach or inside a rock */
 export function scatterFlotsam(islands: Island[], hazards: Hazard[], random: () => number): Flotsam[] {
   const flotsam: Flotsam[] = []
   if (hazards.length === 0) return flotsam

@@ -7,7 +7,6 @@ export interface Hazard {
   position: THREE.Vector3
   radius: number
   mesh: THREE.Object3D
-  /** the sea height at the rock, kept current by the loop */
   water: { value: number }
 }
 
@@ -17,12 +16,9 @@ export interface Island {
   tint: number
   position: THREE.Vector3
   radius: number
-  /** key into the event table in events.ts */
   event: string
   group: THREE.Group
-  /** the column of light over an island not yet visited */
   beacon: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicNodeMaterial> | null
-  /** smoothed across frames by the loop, so the land heaves a beat behind the water */
   ride: { height: number; pitch: number; roll: number }
 }
 
@@ -32,7 +28,6 @@ export interface World {
   flotsam: Flotsam[]
 }
 
-/** mulberry32, so a seed always lays out the same sea */
 function randomSource(seed: number) {
   let a = seed >>> 0
   return () => {
@@ -57,7 +52,6 @@ export function driftForPieces(pieces: number) {
 interface IslandSpec {
   id: string
   name: string
-  /** the one-line hint on the opening page */
   teaser: string
   event: string
   tint: number
@@ -94,13 +88,10 @@ export const ISLAND_SPECS: readonly IslandSpec[] = [
   },
 ]
 
-/** every island holds one piece of the chart */
 export const CHART_PIECES = ISLAND_SPECS.length
 
-/** clear water to leave between two islands */
 const SEPARATION = 52
 
-/** how far the model's sandy base reaches, as a multiple of the island's radius */
 const SHORE_REACH = 1.15
 const BEACH_HEIGHT = 0.9
 
@@ -114,7 +105,6 @@ function makeIslandBody(islandModel: THREE.Object3D, radius: number, random: () 
   return group
 }
 
-/** ignores the fog on purpose, so it can be picked out on the horizon */
 function makeBeacon(tint: number) {
   const color = new THREE.Color(0xffd27a).lerp(new THREE.Color(tint), 0.25)
   const material = new THREE.MeshBasicNodeMaterial({
@@ -128,7 +118,6 @@ function makeBeacon(tint: number) {
   return new THREE.Mesh(new THREE.CylinderGeometry(1.2, 2.6, 90, 16, 1, true), material)
 }
 
-/** a spot on a rough ring around the origin, clear of the islands already placed */
 function placeIsland(index: number, radius: number, placed: Island[], random: () => number) {
   const isClear = (x: number, z: number, other: Island) =>
     Math.hypot(x - other.position.x, z - other.position.z) > radius + other.radius + SEPARATION
@@ -136,7 +125,6 @@ function placeIsland(index: number, radius: number, placed: Island[], random: ()
   let x = 0
   let z = 0
   for (let attempt = 0; attempt < 80; attempt++) {
-    // golden-angle spread, with jitter, and a ring that widens on each retry
     const angle = index * 2.39996 + random() * 1.2 + attempt * 0.7
     const distance = 80 + random() * 120 + attempt * 3
 
@@ -145,7 +133,6 @@ function placeIsland(index: number, radius: number, placed: Island[], random: ()
     if (placed.every((other) => isClear(x, z, other))) break
   }
 
-  // fallback: push away from the nearest neighbour until there is room
   for (let pass = 0; pass < 40; pass++) {
     let nearest: Island | null = null
     let gap = Infinity
@@ -168,7 +155,6 @@ function placeIsland(index: number, radius: number, placed: Island[], random: ()
   return new THREE.Vector3(x, 0, z)
 }
 
-/** lay out the islands and the rocks between them; the same seed gives the same sea */
 export function buildWorld(islandModel: THREE.Object3D, seed = Math.random() * 0xffffffff): World {
   const random = randomSource(seed)
   const islands: Island[] = []
@@ -180,7 +166,6 @@ export function buildWorld(islandModel: THREE.Object3D, seed = Math.random() * 0
 
     const group = makeIslandBody(islandModel, radius, random)
     group.name = spec.id
-    // kept out of the island group, so it stands upright while the land rocks
     const beacon = makeBeacon(spec.tint)
 
     islands.push({
@@ -196,7 +181,6 @@ export function buildWorld(islandModel: THREE.Object3D, seed = Math.random() * 0
     })
   })
 
-  // rocks scattered along the crossings between pairs of islands
   for (let i = 0; i < 70; i++) {
     const a = islands[Math.floor(random() * islands.length)]
     const b = islands[Math.floor(random() * islands.length)]
@@ -228,7 +212,6 @@ export function buildWorld(islandModel: THREE.Object3D, seed = Math.random() * 0
   return { islands, hazards, flotsam: scatterFlotsam(islands, hazards, random) }
 }
 
-/** the beacon going out is how the player sees an island is spent */
 export function putOutBeacon(island: Island) {
   island.beacon?.removeFromParent()
   island.beacon = null
@@ -238,12 +221,10 @@ export function tintCss(island: Island) {
   return `#${island.tint.toString(16).padStart(6, '0')}`
 }
 
-/** distance across the water, ignoring height */
 export function flatDistance(a: THREE.Vector3, b: THREE.Vector3) {
   return Math.hypot(a.x - b.x, a.z - b.z)
 }
 
-/** compass bearing (whole degrees, 0 = north) and range (whole metres) to a target */
 export function bearingAndRange(from: THREE.Vector3, to: THREE.Vector3) {
   const dx = to.x - from.x
   const dz = to.z - from.z

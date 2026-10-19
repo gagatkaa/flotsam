@@ -108,7 +108,6 @@ export function choiceCard(choice: Choice, affordable: boolean, held: boolean, o
   if (choice.gain && held) mods += `<span class="cost">${choice.gain.name} already fitted</span>`
 
   const card = button('card', '', onPick)
-  // an unaffordable choice stays visible, so you can see what you are missing
   if (!affordable) {
     card.disabled = true
     mods += '<span class="cost">not enough to pay</span>'

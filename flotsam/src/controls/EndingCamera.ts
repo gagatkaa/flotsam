@@ -1,27 +1,17 @@
 import * as THREE from 'three/webgpu'
 
 export interface Shot {
-  /** distance from the boat across the water, in metres */
   radius: number
-  /** height above the water, in metres */
   height: number
-  /** how far it swings round the boat on the way out, in radians */
   sweep: number
-  /** a fixed angle round the boat (atan2(x, z) of the offset) to settle at instead of circling */
   bearing?: number
-  /** moves a camera position that ended up inside something back into the open */
   keepClear?: (position: THREE.Vector3) => void
   fov: number
 }
 
-/** seconds the pull-out takes */
 const PULL_OUT = 6
-/** seconds the gaze takes to turn to the boat */
 const TURN = 2.2
-/** slow orbit once settled, so the last shot never freezes */
 const ORBIT = 0.05
-
-/** the closing shot: lifts off the deck, turns to the boat and pulls away */
 export class EndingCamera {
   active = false
 
@@ -44,7 +34,6 @@ export class EndingCamera {
     this.scene = scene
   }
 
-  /** take the camera off the deck, keeping where it is and where it looks */
   start(focus: THREE.Vector3, shot: Shot) {
     this.scene.attach(this.camera)
     this.shot = shot
@@ -65,7 +54,6 @@ export class EndingCamera {
 
     const out = THREE.MathUtils.smootherstep(this.time, 0, PULL_OUT)
     const { bearing } = this.shot
-    // to a fixed bearing the short way round; otherwise sweep, then keep circling
     const angle =
       bearing === undefined
         ? this.startAngle + this.shot.sweep * out + this.time * ORBIT

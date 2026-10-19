@@ -78,7 +78,6 @@ function wake(x: number, z: number, sx: number, sz: number, dx: number, dz: numb
 
 /** CPU mirror of the height field the shader raymarches, so objects ride the visible sea */
 export class WaveField {
-  /** must match the uniforms fed to the shader */
   time = 0
   choppy: number = BASE_CHOPPY
 

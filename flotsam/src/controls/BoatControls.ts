@@ -4,7 +4,6 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 const THROTTLE_RATE = 3
 const RUDDER_RATE = 2.6
 
-/** mouse look, plus W/S for throttle and A/D for rudder */
 export class BoatControls extends PointerLockControls {
   throttle = 0
   rudder = 0
@@ -14,7 +13,7 @@ export class BoatControls extends PointerLockControls {
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
     super(camera, domElement)
 
-    // track both the physical key and the letter it types, so remapped layouts still steer
+   
     window.addEventListener('keydown', (event) => {
       this.keys.add(event.code)
       this.keys.add(keyName(event.key))
@@ -25,7 +24,7 @@ export class BoatControls extends PointerLockControls {
     })
     window.addEventListener('blur', () => this.keys.clear())
 
-    // on window, because the HUD covers the canvas; clicks inside panels must not lock
+  
     window.addEventListener('click', (event) => {
       if (this.isLocked || !this.enabled) return
       if ((event.target as Element | null)?.closest?.('#chart, #draft, #overlay, #pause, #land')) return
@@ -35,7 +34,6 @@ export class BoatControls extends PointerLockControls {
 
   update(delta: number) {
     const throttleTarget = this.axis('w', 's')
-    // positive rudder swings the bow to starboard
     const rudderTarget = this.axis('d', 'a')
 
     this.throttle += (throttleTarget - this.throttle) * Math.min(1, THROTTLE_RATE * delta)
@@ -54,7 +52,6 @@ export class BoatControls extends PointerLockControls {
   }
 }
 
-/** single characters as lowercase, so Caps Lock never matters */
 function keyName(key: string) {
   return key.length === 1 ? key.toLowerCase() : key
 }

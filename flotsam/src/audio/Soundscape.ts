@@ -21,24 +21,18 @@ interface Playing {
   gain: GainNode
 }
 
-/** seconds an island's sound takes to fade when you leave */
+
 const ARRIVAL_FADE = 0.6
 
 interface Mixer {
   ctx: AudioContext
   master: GainNode
   seaGain: GainNode
-  /** depth of the slow swell on the sea's volume */
   seaDepth: GainNode
-  /** the synthesized water churning past the hull */
   swimGain: GainNode
   swimFilter: BiquadFilterNode
 }
 
-/**
- * All the sound, on one AudioContext created lazily on the first user gesture,
- * since browsers will not start audio before one.
- */
 export class Soundscape {
   private mixer: Mixer | null = null
   private hitBuffer: AudioBuffer | null = null
@@ -48,7 +42,7 @@ export class Soundscape {
   private arrival: Playing | null = null
   private ready = false
 
-  /** create the context, or wake a suspended one */
+
   start() {
     if (this.mixer) {
       if (this.mixer.ctx.state === 'suspended') void this.mixer.ctx.resume()
@@ -64,7 +58,6 @@ export class Soundscape {
     void this.loadClips(this.mixer)
   }
 
-  /** `rough` is 0..1, how much the sea has closed in; `quiet` ducks everything while paused */
   tick(rough: number, speed: number, quiet: boolean) {
     if (!this.mixer || !this.ready) return
     const { ctx, master, seaGain, seaDepth, swimGain, swimFilter } = this.mixer
@@ -81,7 +74,6 @@ export class Soundscape {
     master.gain.setTargetAtTime(quiet ? 0.22 : 1, now, 0.15)
   }
 
-  /** the hull-slam, louder and higher-pitched the harder she hits */
   bump(speed: number) {
     if (!this.mixer || !this.hitBuffer) return
     const { ctx, master } = this.mixer
@@ -156,7 +148,6 @@ export class Soundscape {
       console.warn('could not load audio', err)
     }
 
-    // loaded separately, so one bad file cannot silence the sea
     for (const [clip, url] of Object.entries(CLIP_URLS) as [Clip, string][]) {
       loadClip(ctx, url)
         .then((buffer) => (this.clips[clip] = buffer))
@@ -175,7 +166,6 @@ function buildMixer(ctx: AudioContext): Mixer {
   const master = ctx.createGain()
   master.connect(ctx.destination)
 
-  // the looped sea is connected once it loads; a slow LFO breathes on its volume
   const seaGain = ctx.createGain()
   seaGain.gain.value = 0.34
   seaGain.connect(master)
@@ -188,7 +178,7 @@ function buildMixer(ctx: AudioContext): Mixer {
   seaDepth.connect(seaGain.gain)
   swell.start()
 
-  // brown noise through a bandpass that tick() drives with speed
+
   const swimFilter = ctx.createBiquadFilter()
   swimFilter.type = 'bandpass'
   swimFilter.frequency.value = 340

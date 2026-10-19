@@ -1,10 +1,8 @@
 import * as THREE from 'three/webgpu'
 import { color, mix, positionWorld, smoothstep, uniform, vertexColor } from 'three/tsl'
 
-/** how high the foam runs up the stone above the water, in metres */
 const FOAM = 0.22
 
-/** metres above the average sea that stay wet and dark, and then green with weed */
 const WET_LINE = 0.15
 const WEED_LINE = 0.5
 
@@ -15,17 +13,14 @@ const SALT = new THREE.Color(0xcdc8bb)
 
 export interface Rock {
   group: THREE.Group
-  /** the sea level around it, kept current by the loop */
   water: { value: number }
 }
 
-/** two to four boulders, all inside `radius`, the rock's collision footprint */
 export function makeRock(radius: number, random: () => number): Rock {
   const water = uniform(0)
   const material = new THREE.MeshStandardNodeMaterial({ roughness: 0.95, flatShading: true })
 
-  // clip the stone at the moving waterline with a lick of foam; fading it into a
-  // dark under-sea colour instead reads as a shadow, as if the rock were hovering
+
   const above = positionWorld.y.sub(water)
   const foam = smoothstep(FOAM, 0, above).mul(0.6)
   material.colorNode = mix(vertexColor(), color(0xeef4f5), foam)
@@ -53,11 +48,6 @@ export function makeRock(radius: number, random: () => number): Rock {
   return { group, water }
 }
 
-/**
- * A lumpy, squat ball about `size` metres in radius whose middle sits `lift`
- * metres above the average sea. The geometry is unindexed, so every face keeps
- * its own flat colour.
- */
 function makeBoulder(size: number, lift: number, detail: number, random: () => number) {
   const geometry = new THREE.IcosahedronGeometry(1, detail)
   const position = geometry.attributes.position
@@ -75,14 +65,12 @@ function makeBoulder(size: number, lift: number, detail: number, random: () => n
   for (let i = 0; i < position.count; i++) {
     point.fromBufferAttribute(position, i)
 
-    // a corner appears once per face that shares it, so every push must depend
-    // only on where the corner is, or the faces would tear apart
+ 
     let reach = 1
     for (const lump of lumps) reach += lump.push * Math.exp(-lump.width * (1 - point.dot(lump.dir)))
     reach += Math.sin(point.x * 7.1 + grit) * Math.sin(point.y * 6.3 - grit) * Math.sin(point.z * 5.7 + grit) * 0.09
 
     point.multiplyScalar(reach)
-    // flare the foot so the sides run down into the water instead of curling under
     if (point.y < 0) {
       const flare = 1 - point.y * 0.45
       point.x *= flare
@@ -100,7 +88,6 @@ function makeBoulder(size: number, lift: number, detail: number, random: () => n
   return geometry
 }
 
-/** colour every face by its height above the sea and which way it faces */
 function paint(geometry: THREE.BufferGeometry, lift: number, random: () => number) {
   const position = geometry.attributes.position
   const normal = geometry.attributes.normal

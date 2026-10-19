@@ -4,52 +4,37 @@ import { loadBoat } from './models'
 import { SEA_DEEP, type WaveField } from './WaveField'
 import type { Stats } from '../game/stats'
 
-/** half the hull's length: how far fore and aft she samples the waves */
 const HULL_LENGTH = 1.6
 
-/** per-second easing rates for heave and lean; slow enough to ride through small chop */
 const HEAVE_RATE = 3
 const LEAN_RATE = 2.2
 
-/**
- * How much of the deck's pitch and roll the camera cancels, 0 to 1. A camera
- * bolted to the deck is what makes the view sickening.
- */
+
 const HORIZON_HOLD = 0.6
 const HIT_COLOR = new THREE.Color(0xff5533)
 
-/** how much slower she sheds speed than she gains it */
 const COAST = 0.32
 
-/** how much speed a hard turn bleeds away */
 const TURN_DRAG = 0.55
 
-/** heel at full sail, in radians */
 const HEEL = 0.19
 
-/** helm authority at a dead stop, so a stalled boat can still swing her head round */
 const REST_HELM = 0.25
 
-/** eye position: just ahead of the mast. Negative aft means forward of the middle */
 const CAMERA_HEIGHT = 0.85
 const CAMERA_AFT = -0.9
 
-/** where the hull snaps when she goes down, as a distance aft of the middle */
 const BREAK_AT = 0.25
 
-/** the wreck fades into SEA_DEEP as it sinks, and is gone by this depth */
 const SUNK_DEPTH = 3.5
 
 export class Ship {
-  /** yaw only */
   readonly rig = new THREE.Group()
-  /** pitch + roll; carries the hull and the camera mount */
   readonly deck = new THREE.Group()
   readonly cameraMount = new THREE.Object3D()
   readonly position = new THREE.Vector3()
   readonly velocity = new THREE.Vector3()
   readonly facing = new THREE.Vector3(0, 0, -1)
-  /** anchored while a panel is up */
   hold = false
 
   hp: number
@@ -57,7 +42,6 @@ export class Ship {
   yaw = 0
   sinking = false
 
-  /** current helm, -1 to 1, so the deck can heel into the turn */
   private turnLoad = 0
   private stats: Stats
   private readonly tints: { material: THREE.MeshStandardNodeMaterial; base: THREE.Color }[] = []
@@ -79,10 +63,8 @@ export class Ship {
     this.rig.add(this.deck)
     this.deck.add(this.cameraMount)
     this.cameraMount.position.set(0, CAMERA_HEIGHT, CAMERA_AFT)
-    // undoes the deck's pitch-then-roll in reverse order
     this.cameraMount.rotation.order = 'ZYX'
 
-    // every material is kept for the hit flash, and fades into the sea once she sinks
     const remember = (material: THREE.MeshStandardNodeMaterial) => {
       this.tints.push({ material, base: material.color.clone() })
       const depth = this.uWater.sub(positionWorld.y)
@@ -95,7 +77,6 @@ export class Ship {
         this.boat = boat
         this.deck.add(boat)
         this.cameraMount.position.x = bow.x
-        // she may have gone down before the model arrived
         if (this.sinking) this.breakHull()
       })
       .catch((err) => console.warn('could not load boat.fbx', err))
@@ -105,12 +86,10 @@ export class Ship {
     return !this.sinking
   }
 
-  /** hull left, 0 to 1 */
   get health() {
     return this.hp / this.stats.hull
   }
 
-  /** swap in new stats, keeping the same share of hull damage */
   applyStats(stats: Stats) {
     const health = this.health
     this.stats = stats
@@ -137,10 +116,7 @@ export class Ship {
     this.breakHull()
   }
 
-  /**
-   * Cut the boat in two at BREAK_AT. Each triangle goes to whichever side its
-   * middle is on, so the break is ragged. Each half pivots about the break.
-   */
+
   private breakHull() {
     const boat = this.boat
     if (!boat || this.halves) return
@@ -201,7 +177,6 @@ export class Ship {
     const pumps = this.health < 0.5 ? stats.pumps : 1
     const maxSpeed = stats.speed * pumps
 
-    // a sail cannot push backwards: S brakes at full rate, easing off only coasts
     const target = maxSpeed * THREE.MathUtils.clamp(throttle, 0, 1)
     const toward = target - this.speed
     const backing = throttle < 0
@@ -221,7 +196,6 @@ export class Ship {
     this.turnLoad = helm
   }
 
-  /** sample bow, stern and both sides, and pitch, roll and heave to match */
   private rideWaves(delta: number, waves: WaveField) {
     const e = HULL_LENGTH
     const { x, z } = this.position
@@ -244,7 +218,6 @@ export class Ship {
     let follow = ease(LEAN_RATE, delta)
 
     if (this.sinking) {
-      // a gentle fixed list: the camera rides the deck, so a capsize would spin the world
       targetPitch = 0
       targetRoll = 0.08
       follow = ease(1.1, delta)
@@ -270,7 +243,6 @@ export class Ship {
     this.cameraMount.rotation.set(-this.pitch * HORIZON_HOLD, 0, -this.roll * HORIZON_HOLD)
   }
 
-  /** the sea level where she lies */
   get waterline() {
     return this.smoothedHeight
   }
@@ -280,7 +252,6 @@ export class Ship {
     return Math.min(14, 0.2 * t + 0.11 * t * t)
   }
 
-  /** the two halves fold up into a V about the break and drift apart */
   private breakApart() {
     if (!this.halves) return
     const t = this.sinkTimer
@@ -309,7 +280,6 @@ export class Ship {
   }
 }
 
-/** split a non-indexed mesh at z = 0 into one mesh per side (bow is -z) and material */
 function splitAtZero(geometry: THREE.BufferGeometry, materials: THREE.Material[]) {
   const position = geometry.attributes.position
   const triangles = position.count / 3
@@ -345,7 +315,6 @@ function splitAtZero(geometry: THREE.BufferGeometry, materials: THREE.Material[]
   })
 }
 
-/** frame-rate independent share of the way to close towards a target at `rate` per second */
 function ease(rate: number, delta: number) {
   return 1 - Math.exp(-rate * delta)
 }

@@ -6,7 +6,6 @@ export interface VoyageResult {
   gold: number
   provisions: number
   hull: number
-  /** time spent under sail, in seconds */
   seconds: number
 }
 
@@ -22,7 +21,6 @@ export interface Score {
   lines: ScoreLine[]
 }
 
-/** a voyage home earns one point per second under par */
 const PAR_SECONDS = 240
 
 const HOME_RATINGS: [number, string][] = [
@@ -68,14 +66,12 @@ export function scoreVoyage(result: VoyageResult): Score {
 
 const BEST_KEY = 'flotsam-best-score'
 
-/** save this score if it is the best on this browser */
 export function recordBest(total: number): { best: number; isNew: boolean } {
   try {
     const previous = Number(localStorage.getItem(BEST_KEY)) || 0
     if (total > previous) localStorage.setItem(BEST_KEY, String(total))
     return { best: Math.max(total, previous), isNew: total > previous }
   } catch {
-    // storage can be blocked, e.g. in private windows
     return { best: total, isNew: false }
   }
 }

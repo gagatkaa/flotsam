@@ -3,12 +3,9 @@ import * as CANNON from 'cannon-es'
 type SolidKind = 'rock' | 'island'
 
 export interface ContactHit {
-  /** XZ normal pointing away from the thing she hit */
   nx: number
   nz: number
-  /** hull overlap this frame, in metres */
   depth: number
-  /** how hard she is pressing into it, along the normal */
   speed: number
   kind: SolidKind
 }
@@ -20,7 +17,6 @@ interface Point {
 }
 
 const FIXED = 1 / 60
-/** how far the hull reaches out from its centre, in metres */
 const HULL = 2
 
 interface Solid {
@@ -58,7 +54,6 @@ export class Physics {
 
   island(x: number, z: number, radius: number) {
     const body = new CANNON.Body({ mass: 0 })
-    // tall enough that the hull always meets it across the wave heave
     const rim = radius * 1.12 + 1.5
     body.addShape(new CANNON.Cylinder(rim, rim + 0.1, 6, 12), new CANNON.Vec3(x, -2, z))
     this.solids.push({ kind: 'island', body, radius: rim, x, z })
@@ -96,7 +91,6 @@ export class Physics {
     const ship = this.ship
     ship.position.set(position.x, position.y, position.z)
     ship.velocity.set(velocity.x, 0, velocity.z)
-    // exactly one internal step, so the contacts are always for this position
     this.world.step(FIXED)
 
     const touched = new Set<CANNON.Body>()

@@ -364,12 +364,9 @@ function finalTally(home: boolean) {
 }
 
 const SUNK_SHOT: Shot = { radius: 22, height: 9, sweep: 1.1, fov: 55 }
-// low and astern, so the sun she sails for is in frame
 const HOME_SHOT: Shot = { radius: 20, height: 4, sweep: 0, bearing: SUN_YAW, fov: 55 }
-/** seconds the closing shot plays before the last page comes up */
 const SUNK_DELAY = 7
 const HOME_DELAY = 6
-/** open water the closing camera keeps between itself and any shore or rock */
 const CAMERA_ROOM = 6
 
 const endingFocus = new THREE.Vector3()
@@ -378,7 +375,6 @@ function updateEndingFocus() {
   return endingFocus
 }
 
-/** swing whichever way keeps the most open water, so the shot doesn't end inside a rock */
 function clearShot(shot: Shot): Shot {
   const from = camera.getWorldPosition(new THREE.Vector3())
   const angle = Math.atan2(from.x - ship.position.x, from.z - ship.position.z)
@@ -390,7 +386,6 @@ function clearShot(shot: Shot): Shot {
   return { ...shot, sweep: best, keepClear }
 }
 
-/** as close to dead astern as the open water allows */
 function clearHomeShot(shot: Shot): Shot {
   const ideal = shot.bearing ?? 0
   for (const step of [0, 1, -1, 2, -2, 3, -3, 4, -4]) {
@@ -400,7 +395,6 @@ function clearHomeShot(shot: Shot): Shot {
   return { ...shot, keepClear }
 }
 
-/** least open water along the camera's path out to this bearing and distance */
 function roomAlong(bearing: number, radius: number, from = bearing) {
   let least = Infinity
   for (const k of [0.4, 0.7, 1]) {
@@ -418,7 +412,6 @@ function keepClear(position: THREE.Vector3) {
   position.z += near.nz * (CAMERA_ROOM - near.gap)
 }
 
-/** the closing shot plays first; a click or key skips straight to the last page */
 function beginEnding(home: boolean, log: string[]) {
   sound.leave()
   ship.hold = false

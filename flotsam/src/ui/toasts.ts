@@ -32,7 +32,6 @@ const LABELS: Record<keyof Tally, string> = {
   food: 'food',
 }
 
-/** toast every number that moved between two tallies; returns true if any did */
 export function announceChanges(container: HTMLElement, before: Tally, after: Tally) {
   let changed = false
   for (const key of Object.keys(LABELS) as (keyof Tally)[]) {

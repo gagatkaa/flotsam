@@ -1,21 +1,13 @@
 export interface Stats {
   hull: number
-  /** top speed in units/second */
   speed: number
   accel: number
-  /** yaw rate at full rudder, radians/second */
   turn: number
-  /** multiplies pitch and roll from the waves */
   waveImpact: number
-  /** how far the deck sits above the waterline */
   rideHeight: number
-  /** rudder authority at a dead stop, 0-1 */
   helmFloor: number
-  /** speed multiplier once below half hull */
   pumps: number
-  /** multiplier on damage taken */
   frailty: number
-  /** above 0, the instruments show every island instead of just the nearest */
   lookahead: number
 }
 
@@ -32,20 +24,16 @@ export const BASE_STATS: Stats = {
   lookahead: 0,
 }
 
-/** ceilings that keep a late-run deck playable */
 const CAPS = {
   speed: 13.5,
   turn: 2.1,
   waveImpact: 2.2,
 }
 
-/** what is on the boat, as opposed to what is fitted to it */
 export interface Load {
   crew: number
-  /** people aboard who do not work the boat: pure weight */
   passengers: number
   gold: number
-  /** days of food */
   provisions: number
 }
 
@@ -57,13 +45,10 @@ export interface Card {
   id: string
   name: string
   text: string
-  /** multiplied once per copy */
   mul?: Modifier
-  /** added once per copy */
   add?: Modifier
 }
 
-/** resolve a deck into stats; order independent, so the draft order changes nothing */
 export function resolve(deck: readonly Card[], load: Load = STARTING_LOAD): Stats {
   const stats = { ...BASE_STATS }
 
@@ -94,7 +79,6 @@ function applyLoad(stats: Stats, load: Load) {
 
   stats.speed *= 1 - Math.min(0.28, (load.gold / 100) * 0.05)
 
-  // one hand can just about sail her; every extra one helps
   const hands = Math.min(0.55, Math.max(0, load.crew - 1) * 0.13)
   stats.accel *= 1 + hands
   stats.turn *= 1 + hands * 0.55
@@ -104,7 +88,6 @@ function applyLoad(stats: Stats, load: Load) {
   stats.frailty *= 1 + hungry
 }
 
-/** short "speed +12%" lines for the build panel */
 export function describe(card: Card): string {
   const parts: string[] = []
 
@@ -114,7 +97,6 @@ export function describe(card: Card): string {
   }
 
   for (const [key, amount] of entries(card.add)) {
-    // lookahead is described by its effect, not its number
     if (key === 'lookahead') continue
 
     const sign = amount >= 0 ? '+' : ''
