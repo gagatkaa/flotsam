@@ -56,8 +56,17 @@ canvas.id = 'webgl'
 $('#app').appendChild(canvas)
 
 // the ported shader is raw WGSL, so there is no WebGL2 fallback
+/** fade out the loading screen once the page underneath is ready to be seen */
+function reveal() {
+  document.documentElement.classList.add('ready')
+  const loader = $('#loader')
+  loader.classList.add('gone')
+  loader.addEventListener('transitionend', () => loader.remove(), { once: true })
+}
+
 if (!('gpu' in navigator)) {
   $('#overlay').classList.remove('hidden')
+  reveal()
   throw new Error('WebGPU is not available in this browser')
 }
 
@@ -960,3 +969,5 @@ function updateHud(delta: number) {
 
 showIntro()
 animate()
+// wait for the intro's web fonts too, so the text doesn't swap in front of the player
+document.fonts.ready.then(reveal, reveal)
