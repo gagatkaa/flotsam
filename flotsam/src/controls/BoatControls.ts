@@ -4,10 +4,7 @@ import { PointerLockControls } from 'three/addons/controls/PointerLockControls.j
 const THROTTLE_RATE = 3
 const RUDDER_RATE = 2.6
 
-/**
- * Mouse look through PointerLockControls, plus the sailing inputs: W/S for
- * throttle, A/D for rudder.
- */
+/** mouse look, plus W/S for throttle and A/D for rudder */
 export class BoatControls extends PointerLockControls {
   throttle = 0
   rudder = 0
@@ -17,8 +14,7 @@ export class BoatControls extends PointerLockControls {
   constructor(camera: THREE.Camera, domElement: HTMLElement) {
     super(camera, domElement)
 
-    // track the physical key (event.code) and the letter it types (event.key):
-    // a remapped keyboard or one that reports a wrong scan code still steers
+    // track both the physical key and the letter it types, so remapped layouts still steer
     window.addEventListener('keydown', (event) => {
       this.keys.add(event.code)
       this.keys.add(keyName(event.key))
@@ -29,19 +25,17 @@ export class BoatControls extends PointerLockControls {
     })
     window.addEventListener('blur', () => this.keys.clear())
 
-    // listen on window, not the canvas: the HUD overlay covers the canvas.
-    // Ignore clicks that land inside a panel, or picking an island would
-    // immediately lock the pointer away from the player.
+    // on window, because the HUD covers the canvas; clicks inside panels must not lock
     window.addEventListener('click', (event) => {
       if (this.isLocked || !this.enabled) return
-      if ((event.target as HTMLElement).closest('#chart, #draft, #overlay, #pause, #land')) return
+      if ((event.target as Element | null)?.closest?.('#chart, #draft, #overlay, #pause, #land')) return
       this.lock()
     })
   }
 
   update(delta: number) {
     const throttleTarget = this.axis('w', 's')
-    // positive rudder swings the bow to starboard (right)
+    // positive rudder swings the bow to starboard
     const rudderTarget = this.axis('d', 'a')
 
     this.throttle += (throttleTarget - this.throttle) * Math.min(1, THROTTLE_RATE * delta)
@@ -51,18 +45,16 @@ export class BoatControls extends PointerLockControls {
     if (Math.abs(this.rudder) < 0.001) this.rudder = 0
   }
 
-  /** +1 while the positive letter is held, -1 for the negative one, 0 for both or neither */
   private axis(positive: string, negative: string) {
     return Number(this.isHeld(positive)) - Number(this.isHeld(negative))
   }
 
-  /** a letter key is held if either its physical key or the letter it types is down */
   private isHeld(letter: string) {
     return this.keys.has(`Key${letter.toUpperCase()}`) || this.keys.has(letter)
   }
 }
 
-/** single characters as lowercase, so Caps Lock and layout never matter */
+/** single characters as lowercase, so Caps Lock never matters */
 function keyName(key: string) {
   return key.length === 1 ? key.toLowerCase() : key
 }

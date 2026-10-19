@@ -269,7 +269,6 @@ const EVENTS: Record<string, IslandEvent> = {
   },
 }
 
-/** the story written for an island, or undefined if it has none yet */
 export function eventFor(id: string): IslandEvent | undefined {
   return EVENTS[id]
 }

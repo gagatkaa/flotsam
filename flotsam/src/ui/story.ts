@@ -1,13 +1,10 @@
-// Builders for the story panels: the opening page, the island scenes, the
-// choice cards and the closing log. They only make elements; main.ts decides
-// when to show them.
+// Builders for the story panels. They only make elements; main.ts decides when to show them.
 
 import { cardName } from '../game/cards'
 import type { Choice } from '../game/run'
 import type { Score } from '../game/score'
 import { CHART_PIECES, ISLAND_SPECS } from '../game/world'
 
-/** the opening page: the situation, the islands, then the keys */
 export function introSheet() {
   const islands = ISLAND_SPECS.map(
     (spec, index) =>
@@ -45,7 +42,6 @@ export function introSheet() {
   return sheet
 }
 
-/** shown between the intro and casting off: the camera rides a rocking deck */
 export function seasickWarning() {
   const sheet = document.createElement('div')
   sheet.className = 'prologue warning'
@@ -61,7 +57,6 @@ export function seasickWarning() {
   return sheet
 }
 
-/** one page of the log: a title and its paragraphs */
 export function sceneBlock(title: string, ...paragraphs: string[]) {
   const block = document.createElement('div')
   block.className = 'scene'
@@ -69,7 +64,6 @@ export function sceneBlock(title: string, ...paragraphs: string[]) {
   return block
 }
 
-/** a button with the given class that runs `onClick` */
 export function button(className: string, label: string, onClick: () => void) {
   const element = document.createElement('button')
   element.className = className
@@ -78,7 +72,6 @@ export function button(className: string, label: string, onClick: () => void) {
   return element
 }
 
-/** the resources a choice changes, as [Choice field, label] */
 const DELTAS = [
   ['crewDelta', 'crew'],
   ['passengersDelta', 'rescued'],
@@ -87,16 +80,15 @@ const DELTAS = [
 ] as const
 
 /**
- * A choice as a clickable card. Every choice says what it will hand over and
- * what it will cost, in prose and then in hard numbers, so the decision is
- * never a guess.
+ * A choice as a clickable card, listing exactly what it gives and costs.
+ * `held` means its card is already on board, so it would add nothing.
  */
-export function choiceCard(choice: Choice, affordable: boolean, onPick: () => void) {
+export function choiceCard(choice: Choice, affordable: boolean, held: boolean, onPick: () => void) {
   const gains: string[] = []
   const costs: string[] = []
 
   if (choice.piece) gains.push('a piece of the map')
-  if (choice.gain) gains.push(choice.gain.name)
+  if (choice.gain && !held) gains.push(choice.gain.name)
   for (const [field, label] of DELTAS) {
     const amount = choice[field] ?? 0
     if (amount > 0) gains.push(`${amount} ${label}`)
@@ -113,9 +105,10 @@ export function choiceCard(choice: Choice, affordable: boolean, onPick: () => vo
     ...gains.map((gain) => `<span class="gain">+ ${gain}</span>`),
     ...costs.map((cost) => `<span class="cost">− ${cost}</span>`),
   ].join('')
+  if (choice.gain && held) mods += `<span class="cost">${choice.gain.name} already fitted</span>`
 
   const card = button('card', '', onPick)
-  // a choice you cannot pay for stays on the table, so you can see what you are missing
+  // an unaffordable choice stays visible, so you can see what you are missing
   if (!affordable) {
     card.disabled = true
     mods += '<span class="cost">not enough to pay</span>'
@@ -127,7 +120,6 @@ export function choiceCard(choice: Choice, affordable: boolean, onPick: () => vo
   return card
 }
 
-/** every choice made on the voyage, in order */
 export function voyageLog(log: string[]) {
   const list = document.createElement('ol')
   list.id = 'log'
@@ -139,7 +131,6 @@ export function voyageLog(log: string[]) {
   return list
 }
 
-/** the closing tally: a rating, the points, and where they came from */
 export function scoreSheet(score: Score, best: { best: number; isNew: boolean }) {
   const lines = score.lines
     .map((line) => `<li><span>${line.label}</span><b>${line.value}</b><i>+${line.points}</i></li>`)

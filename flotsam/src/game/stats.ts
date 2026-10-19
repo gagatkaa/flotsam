@@ -1,28 +1,21 @@
 export interface Stats {
-  /** hit points before the hull goes under */
   hull: number
   /** top speed in units/second */
   speed: number
-  /** how fast you reach top speed */
   accel: number
   /** yaw rate at full rudder, radians/second */
   turn: number
-  /** multiplies pitch and roll from the waves. high = punishing ride */
+  /** multiplies pitch and roll from the waves */
   waveImpact: number
   /** how far the deck sits above the waterline */
   rideHeight: number
-  /** rudder authority available at a dead stop, 0-1 */
+  /** rudder authority at a dead stop, 0-1 */
   helmFloor: number
-  /** flat speed multiplier once below half hull, 1 = none */
+  /** speed multiplier once below half hull */
   pumps: number
-  /** multiplier on collision damage taken */
+  /** multiplier on damage taken */
   frailty: number
-  /**
-   * How much of the archipelago you can read off the instruments. 0 means the
-   * dead reckoning in your head: one bearing, to the nearest island. Higher
-   * values buy you the whole set, so one Navigator's Glass does the job and
-   * further copies are only worth taking for what else they carry.
-   */
+  /** above 0, the instruments show every island instead of just the nearest */
   lookahead: number
 }
 
@@ -39,30 +32,20 @@ export const BASE_STATS: Stats = {
   lookahead: 0,
 }
 
-/**
- * Ceilings that exist to stop a late-run deck from becoming unplayable rather
- * than to balance it. Speeds and turns still climb, just not without bound.
- */
+/** ceilings that keep a late-run deck playable */
 const CAPS = {
   speed: 13.5,
   turn: 2.1,
   waveImpact: 2.2,
 }
 
-/**
- * What is actually on the boat, as opposed to what has been fitted to it. The
- * deck is not just cards: a boat carrying nine rescued people and a chest of
- * coin handles like a barge, and a boat with nobody left to work the lines
- * handles like nothing at all.
- */
+/** what is on the boat, as opposed to what is fitted to it */
 export interface Load {
-  /** hands that can work the sheets. This is a crew, not a passenger list */
   crew: number
-  /** people picked up who do not pull. pure weight */
+  /** people aboard who do not work the boat: pure weight */
   passengers: number
-  /** coin and plate. heavier than it looks */
   gold: number
-  /** days of food. a short commons makes the crew slow and clumsy */
+  /** days of food */
   provisions: number
 }
 
@@ -73,7 +56,6 @@ export type Modifier = Partial<Record<keyof Stats, number>>
 export interface Card {
   id: string
   name: string
-  /** the player-facing description, written from the card's own numbers */
   text: string
   /** multiplied once per copy */
   mul?: Modifier
@@ -81,11 +63,7 @@ export interface Card {
   add?: Modifier
 }
 
-/**
- * Resolve a deck into stats. Pure and order independent: two copies of a card
- * contribute twice, and the order you drafted them in changes nothing. That
- * makes the build readable as a list and keeps the draft honest.
- */
+/** resolve a deck into stats; order independent, so the draft order changes nothing */
 export function resolve(deck: readonly Card[], load: Load = STARTING_LOAD): Stats {
   const stats = { ...BASE_STATS }
 
@@ -103,39 +81,30 @@ export function resolve(deck: readonly Card[], load: Load = STARTING_LOAD): Stat
   stats.rideHeight = Math.max(0.1, stats.rideHeight)
   stats.helmFloor = Math.min(1, Math.max(0, stats.helmFloor))
   stats.frailty = Math.max(0.15, stats.frailty)
-  // one copy already shows every island, so further copies change nothing
   stats.lookahead = Math.min(6, Math.max(0, stats.lookahead))
 
   return stats
 }
 
-/**
- * Fold the people and the cargo into the stats. Kept beside resolve() rather
- * than inside it so the two kinds of weight stay legible: cards change what the
- * boat is, the load changes what is in it.
- */
 function applyLoad(stats: Stats, load: Load) {
-  // every passenger is a body in the way and a mouth to feed
   const crowding = Math.min(0.42, load.passengers * 0.035)
   stats.speed *= 1 - crowding
   stats.accel *= 1 - crowding * 0.7
   stats.turn *= 1 - crowding * 0.3
 
-  // coin is dead weight, and it adds up faster than passengers do
   stats.speed *= 1 - Math.min(0.28, (load.gold / 100) * 0.05)
 
-  // hands on the lines. one person can just about sail her; more is faster
+  // one hand can just about sail her; every extra one helps
   const hands = Math.min(0.55, Math.max(0, load.crew - 1) * 0.13)
   stats.accel *= 1 + hands
   stats.turn *= 1 + hands * 0.55
 
-  // a short commons: hungry, wet crew work her slowly and break her easily
   const hungry = load.provisions <= 0 ? 0.3 : load.provisions < 3 ? 0.14 : 0
   stats.accel *= 1 - hungry
   stats.frailty *= 1 + hungry
 }
 
-/** short "speed +12%" lines for the build panel, derived from the same numbers */
+/** short "speed +12%" lines for the build panel */
 export function describe(card: Card): string {
   const parts: string[] = []
 
@@ -145,12 +114,10 @@ export function describe(card: Card): string {
   }
 
   for (const [key, amount] of entries(card.add)) {
-    // lookahead counts landmarks rather than adjusting a number, and one copy
-    // already reveals everything there is, so describe the effect instead
+    // lookahead is described by its effect, not its number
     if (key === 'lookahead') continue
 
     const sign = amount >= 0 ? '+' : ''
-    // a 0-1 authority score means nothing as "steering at a stop +0.45"
     const value = key === 'helmFloor' ? `${Math.round(amount * 100)}%` : `${Math.round(amount * 100) / 100}`
     parts.push(`${LABELS[key]} ${sign}${value}`)
   }
@@ -160,7 +127,6 @@ export function describe(card: Card): string {
   return parts.join('  ·  ')
 }
 
-/** a modifier's [stat, value] pairs, typed by stat name */
 function entries(modifier: Modifier = {}) {
   return Object.entries(modifier) as [keyof Stats, number][]
 }

@@ -14,9 +14,7 @@
   --serif: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
   --mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
 
-  /* ------------------------------------------------------------ spacing
-     all padding, gaps and radii breathe with the window size, so no
-     breakpoint ever needs to restate them */
+  /* ------------------------------------------------------------ spacing */
   --panel-pad-y: clamp(22px, 4vh, 40px);
   --panel-pad-x: clamp(16px, 3vw, 24px);
   --sheet-pad-y: clamp(26px, 5vh, 54px);
@@ -36,9 +34,7 @@
   --r-panel: clamp(14px, 1.6vw, 22px);
   --r-pill: 999px;
 
-  /* ------------------------------------------------------------ type scale
-     every text size clamps to the window, so fonts stay readable from a
-     phone to a cinema screen */
+  /* ------------------------------------------------------------ type scale */
   --fs-title: clamp(32px, 4vw + 2.4vh, 58px);
   --fs-scene-title: clamp(23px, 2.6vw + 1.2vh, 36px);
   --fs-story: clamp(17px, 1.3vw + 0.5vh, 22px);
@@ -106,9 +102,6 @@ body {
   pointer-events: none;
 }
 
-/* the offer to come ashore: appears just below the middle of the screen
-   when you coast within range of an island, and does nothing until you
-   press E (or click it). It pulses gently so it cannot be missed. */
 #land {
   position: fixed;
   top: 64%;
@@ -176,7 +169,6 @@ body {
   }
 }
 
-/* a soft ring that swells out from the prompt and fades */
 @keyframes beckon {
   0% {
     box-shadow: 0 0 0 0 rgba(216, 178, 94, 0.5), 0 12px 30px rgba(0, 0, 0, 0.45);
@@ -187,8 +179,6 @@ body {
   }
 }
 
-/* the sail compass: a heading-up tape, so an island is "steer until its
-   mark sits under the notch" */
 #compass {
   position: fixed;
   top: clamp(58px, 8vh, 78px);
@@ -427,7 +417,6 @@ body {
   font-weight: 600;
 }
 
-/* the destinations: one bearing without the spyglass, the whole set with it */
 #bearings {
   display: grid;
   gap: clamp(5px, 0.9vh, 8px);
@@ -462,7 +451,6 @@ body {
   color: rgba(255, 255, 255, 0.55);
 }
 
-/* visited: the island still shows, but it is no longer somewhere to go */
 #bearings li.spent .name,
 #bearings li.spent .leg {
   color: rgba(255, 255, 255, 0.3);
@@ -695,7 +683,6 @@ body {
   color: rgba(43, 36, 23, 0.82);
 }
 
-/* the islands, as a list with leaders like a table of contents */
 .manifest {
   width: 100%;
   max-width: 760px;
@@ -781,7 +768,6 @@ body {
   opacity: 0.35;
 }
 
-/* the intro controls, split into movement and actions with room to breathe */
 .key-groups {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -899,7 +885,6 @@ body {
   justify-self: center;
 }
 
-/* one page of the log, laid over the water */
 #draft .scene {
   position: relative;
   display: grid;
@@ -936,7 +921,6 @@ body {
   background: rgba(154, 115, 40, 0.5);
 }
 
-/* the story line is the thing being read, so it gets the size */
 #draft .scene p,
 #chart .scene p {
   margin: 0;
@@ -948,7 +932,6 @@ body {
   color: rgba(43, 36, 23, 0.88);
 }
 
-/* a drop initial, the way a chapter would open */
 #draft .scene p:first-of-type::first-letter {
   float: left;
   font-size: 3.1em;
@@ -967,7 +950,6 @@ body {
   width: auto;
 }
 
-/* the choices: what each one does, and what it costs, before you commit */
 #draft .card .preview {
   padding-left: 14px;
   border-left: 2px solid rgba(154, 115, 40, 0.65);
@@ -1098,7 +1080,6 @@ body {
   }
 }
 
-/* every sheet and slip settles onto the screen; exits stay instant */
 @keyframes rise {
   from {
     opacity: 0;
@@ -1180,9 +1161,7 @@ body {
   color: rgba(255, 255, 255, 0.7);
 }
 
-/* ============================================================ narrow screens
-   The type scale and spacing tokens already fold with the window, so these
-   rules only handle layout: what stacks and what hides. */
+/* ============================================================ narrow screens */
 
 @media (max-width: 640px) {
   #hud .hud-block h3 {
@@ -1198,7 +1177,6 @@ body {
     width: min(240px, calc(100vw - 24px));
   }
 
-  /* the hud becomes a bar across the bottom, full width minus the insets */
   #hud {
     left: max(10px, env(safe-area-inset-left, 0px));
     right: max(10px, env(safe-area-inset-right, 0px));
@@ -1209,19 +1187,16 @@ body {
     padding: 12px 14px;
   }
 
-  /* card flavour text is the first thing to go when the panel gets tight */
   #build-list li .desc {
     display: none;
   }
 
-  /* the speed readout moves up out of the hud's way */
   #readout {
     top: clamp(150px, 26vh, 210px);
     right: max(14px, env(safe-area-inset-right, 0px));
     bottom: auto;
   }
 
-  /* the manifest stacks instead of squeezing two columns into one line */
   .manifest li {
     display: grid;
     gap: 3px;
@@ -1269,15 +1244,12 @@ body {
 }
 
 @media (min-width: 641px) and (max-width: 1100px) {
-  /* the compass centres in the space beside the hud rather than behind it */
   #compass {
     left: calc(50% + 118px);
     width: min(320px, calc(100vw - 360px));
   }
 }
 
-/* short windows (a phone held sideways): plenty of ship to steer and no
-   room for the shopping list */
 @media (max-height: 560px) {
   :root {
     --panel-pad-y: 20px;
@@ -1292,7 +1264,6 @@ body {
   }
 }
 /* ------------------------------------------------------------------ toasts */
-/* what just changed, slid in at the right edge and gone again in a moment */
 #toasts {
   position: fixed;
   top: clamp(58px, 9vh, 90px);
@@ -1366,7 +1337,6 @@ body {
 }
 
 /* ------------------------------------------------------------- the tally */
-/* the closing score, set into the last page of the story */
 #draft .scene .tally {
   display: grid;
   justify-items: center;
@@ -1459,7 +1429,6 @@ body {
 }
 
 /* ------------------------------------------------------------------- leave */
-/* the quiet way out of an island's story: present, but never louder than the story */
 .leave {
   justify-self: center;
   padding: 8px 16px;
@@ -1487,7 +1456,6 @@ body {
 }
 
 /* ------------------------------------------------------------- the ending */
-/* the voyage is over: the instruments go, and the closing shot has the screen */
 #hud,
 #readout,
 #toasts {
@@ -1504,7 +1472,6 @@ body.ending #damage {
   pointer-events: none;
 }
 
-/* the last page sits over the water lightly, so the camera can still be seen circling */
 body.ending #draft {
   background: radial-gradient(circle at 50% 50%, rgba(3, 12, 20, 0.5), rgba(3, 12, 20, 0.15));
   backdrop-filter: none;

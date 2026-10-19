@@ -3,18 +3,11 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js'
 import boatUrl from './boat.fbx?url'
 import islandUrl from './island.fbx?url'
 
-// The Blender models (boat.fbx and island.fbx), loaded and fitted so the rest
-// of the game can treat them as plain building blocks. Both were modelled in
-// centimetres with flat colours and no textures.
-
 const loader = new FBXLoader()
 
 /**
  * Swap the FBX loader's Phong materials for node materials the WebGPU renderer
- * lights like everything else, keeping each one's Blender colour and the flat,
- * faceted low-poly look. Both sides are drawn, because thin parts like the sail
- * and the palm leaves are single sheets that would vanish when seen from
- * behind. `onMaterial` sees every new material.
+ * can light. Double-sided, because the sail and palm leaves are single sheets.
  */
 function useNodeMaterials(model: THREE.Object3D, onMaterial?: (material: THREE.MeshStandardNodeMaterial) => void) {
   model.traverse((child) => {
@@ -35,9 +28,8 @@ function useNodeMaterials(model: THREE.Object3D, onMaterial?: (material: THREE.M
 }
 
 /**
- * Put the model inside an empty group. The FBX loader stores Blender's own
- * transform (its Z-up rotation and centimetre scale) on the model's root, so
- * all our fitting happens on this wrapper and never overwrites it.
+ * The FBX root carries Blender's Z-up rotation and centimetre scale, so all
+ * fitting happens on a wrapper group instead of overwriting it.
  */
 function wrap(model: THREE.Object3D) {
   const wrapper = new THREE.Group()
@@ -45,17 +37,16 @@ function wrap(model: THREE.Object3D) {
   return wrapper
 }
 
-/** the bounding box of the named mesh, or of the whole model if there is none */
 function boxOf(model: THREE.Object3D, meshName?: string) {
   model.updateMatrixWorld(true)
   const mesh = meshName ? model.getObjectByName(meshName) : undefined
   return new THREE.Box3().setFromObject(mesh ?? model)
 }
 
-/** the boat's length from bow to stern, in metres: the handling was tuned around it */
+/** in metres; the handling was tuned around it */
 const BOAT_LENGTH = 4.2
 
-/** the most forward point of the hull, in the boat's own space: the tip of the bow */
+/** the most forward point of the hull, in the boat's own space */
 function bowTip(boat: THREE.Object3D) {
   boat.updateMatrixWorld(true)
   const hull = boat.getObjectByName('Rowboat_Hull') as THREE.Mesh
@@ -69,17 +60,13 @@ function bowTip(boat: THREE.Object3D) {
   return tip
 }
 
-/**
- * The rowboat, scaled to length, pointing its bow down -Z, with the middle of
- * its hull on the origin so it sits in the water at the deck's height. Also
- * returns where the tip of the bow ends up, so the camera can line up with it.
- */
+/** the rowboat scaled to length, bow down -Z, hull centred on the origin */
 export async function loadBoat(onMaterial: (material: THREE.MeshStandardNodeMaterial) => void) {
   const model = await loader.loadAsync(boatUrl)
   useNodeMaterials(model, onMaterial)
   const boat = wrap(model)
 
-  // she was built bow towards +X in Blender; turn her so the bow faces -Z
+  // modelled bow towards +X
   boat.rotation.y = Math.PI / 2
   const length = boxOf(boat).getSize(new THREE.Vector3()).z
   boat.scale.setScalar(BOAT_LENGTH / length)
@@ -90,11 +77,7 @@ export async function loadBoat(onMaterial: (material: THREE.MeshStandardNodeMate
   return { boat, bow: bowTip(boat) }
 }
 
-/**
- * The island, fitted to a unit size: centred on the origin, 1 unit from the
- * middle to the edge of its sandy base, and the top of that base at y = 0.
- * Each island in the world is a scaled copy of this.
- */
+/** the island fitted to unit radius, centred, with the top of its sandy base at y = 0 */
 export async function loadIsland() {
   const model = await loader.loadAsync(islandUrl)
   useNodeMaterials(model)
@@ -108,7 +91,6 @@ export async function loadIsland() {
   island.scale.setScalar(scale)
   island.position.set(-centre.x, -base.max.y, -centre.z).multiplyScalar(scale)
 
-  // one more group around it, so each copy can be sized and turned without
-  // undoing the fitting above
+  // one more wrapper, so each copy can be sized and turned without undoing the fit
   return wrap(island)
 }

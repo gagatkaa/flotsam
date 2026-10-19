@@ -2,26 +2,22 @@
 // https://www.shadertoy.com/view/Ms2SD1
 // License: Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported
 //
-// GLSL -> WGSL port of the constants + helper functions.
-// This chunk is injected into the shader module ahead of the entry function
-// (see main.ts: `wgslFn(entry, [ wgsl( helpers ) ])`).
+// Constants and helpers, injected ahead of the entry function in fragment.wgsl.
+// The height field is mirrored on the CPU in src/objects/WaveField.ts.
 
 const NUM_STEPS: i32 = 32;
 const PI: f32 = 3.141592;
 const EPSILON: f32 = 1e-3;
 
-// sea
 const ITER_GEOMETRY: i32 = 3;
 const ITER_FRAGMENT: i32 = 5;
 const SEA_HEIGHT: f32 = 0.6;
 const SEA_SPEED: f32 = 0.8;
 const SEA_FREQ: f32 = 0.16;
 const SEA_BASE: vec3f = vec3f( 0.0, 0.09, 0.18 );
-// GLSL: vec3( 0.8, 0.9, 0.6 ) * 0.6 - pre-scaled, vector * scalar is not a
-// valid const expression everywhere
+// GLSL vec3( 0.8, 0.9, 0.6 ) * 0.6, pre-scaled: vector * scalar is not a valid const expression everywhere
 const SEA_WATER_COLOR: vec3f = vec3f( 0.48, 0.54, 0.36 );
 
-// noise
 fn hash( p: vec2f ) -> f32 {
 
 	let h = dot( p, vec2f( 127.1, 311.7 ) );
@@ -43,7 +39,6 @@ fn noise( p: vec2f ) -> f32 {
 
 }
 
-// lighting
 fn diffuse( n: vec3f, l: vec3f, p: f32 ) -> f32 {
 
 	return pow( dot( n, l ) * 0.4 + 0.6, p );
@@ -57,13 +52,10 @@ fn specular( n: vec3f, l: vec3f, e: vec3f, s: f32 ) -> f32 {
 
 }
 
-// sky
-// NOTE: WGSL function parameters are immutable, so the GLSL `e.y = ...` needs a local copy.
-// `dusk` (our addition) runs from 0 at noon to 1 at sunset: the sky goes from the
-// original blue to a deep evening blue overhead burning orange at the horizon
+// `dusk` runs from 0 at noon to 1 at sunset
 fn getSkyColor( e: vec3f, dusk: f32 ) -> vec3f {
 
-	var dir = e;
+	var dir = e; // WGSL parameters are immutable
 	dir.y = ( max( dir.y, 0.0 ) * 0.8 + 0.2 ) * 0.8;
 
 	let day = vec3f( pow( 1.0 - dir.y, 2.0 ), 1.0 - dir.y, 0.6 + ( 1.0 - dir.y ) * 0.4 ) * 1.1;
@@ -75,9 +67,6 @@ fn getSkyColor( e: vec3f, dusk: f32 ) -> vec3f {
 
 }
 
-// the sun the sea's highlights come from (our addition): a hard white disc, a
-// warm halo hugging it, and a wide faint glow that warms that side of the sky
-// warm white at noon, orange and much wider as it sets
 fn getSun( e: vec3f, l: vec3f, dusk: f32 ) -> vec3f {
 
 	let d = max( dot( e, l ), 0.0 );
@@ -93,7 +82,6 @@ fn getSun( e: vec3f, l: vec3f, dusk: f32 ) -> vec3f {
 
 }
 
-// sea
 fn sea_octave( uvIn: vec2f, choppy: f32 ) -> f32 {
 
 	var uv = uvIn;
@@ -107,8 +95,7 @@ fn sea_octave( uvIn: vec2f, choppy: f32 ) -> f32 {
 
 }
 
-// the hollow the boat drags behind her and the water she piles ahead, sampled in
-// world space so it rides along with her. Mirrored on the CPU in WaveField.ts.
+// the boat's wake: a trench astern, a swell at the bow and chevrons behind
 fn wake( p: vec3f, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 
 	let to = p.xz - shipPos;
@@ -119,26 +106,17 @@ fn wake( p: vec3f, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 
 	let v = clamp( shipSpeed / 8.0, 0.0, 1.6 );
 
-	// calm the surface right under the keel so the hull is not buried in its
-	// own wake: 1.0 at the hull, ~0 a few metres out. Wide enough to swallow the
-	// whole boat, or the trench/bow seam at the beam shows as a crease in front
-	// of the camera's eye line.
+	// calm the water under the whole hull, or the trench/bow seam shows as a crease in view
 	let hull = exp( - dist * dist * 0.10 );
 
-	// metres astern and ahead of the hull, and a soft hand-over between the two
-	// across the beam. Each part of the wake lives only on its own side and
-	// dies away with distance; without both, it ran as a thin line to the horizon.
 	let behind = max( - along, 0.0 );
 	let ahead = max( along, 0.0 );
 	let astern = smoothstep( - 0.8, 0.8, - along );
 
-	// a rolling trench astern that wakes with speed and dies with distance
 	let trench = - 0.4 * v * astern * exp( - behind * 0.16 ) * exp( - across * across * 0.08 );
 
-	// the bow piles water up ahead of her, a swell that shoves the seas apart
 	let bow = 0.3 * v * ( 1.0 - astern ) * exp( - ahead * 0.2 ) * exp( - across * across * 0.1 );
 
-	// chevrons: standing waves shed off the transom and spreading behind
 	let chevron = 0.16 * v * astern * sin( behind * 1.7 - abs( across ) * 2.4 )
 		* exp( - behind * 0.06 ) * exp( - abs( across ) * 0.22 );
 
@@ -146,8 +124,7 @@ fn wake( p: vec3f, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 
 }
 
-// height of the sea above p, negative below the surface. `iterations` octaves:
-// ITER_GEOMETRY while raymarching, the finer ITER_FRAGMENT for the normals.
+// height of p above the sea, negative below the surface
 fn map( p: vec3f, iterations: i32, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> f32 {
 
 	var freq = SEA_FREQ;
@@ -166,8 +143,7 @@ fn map( p: vec3f, iterations: i32, seaTime: f32, choppy0: f32, shipPos: vec2f, s
 
 		h += d * amp;
 
-		// GLSL `uv *= octave_m` is a row-vector times matrix product, which WGSL has no
-		// operator for, so the octave rotation is spelled out per component
+		// GLSL `uv *= octave_m` (row vector times matrix), spelled out per component
 		uv = vec2f( uv.x * 1.6 + uv.y * 1.2, uv.x * - 1.2 + uv.y * 1.6 );
 
 		freq *= 1.9;
@@ -193,7 +169,6 @@ fn getSeaColor( p: vec3f, n: vec3f, l: vec3f, eye: vec3f, dist: vec3f, dusk: f32
 	let atten = max( 1.0 - dot( dist, dist ) * 0.001, 0.0 );
 	color += SEA_WATER_COLOR * ( p.y - SEA_HEIGHT ) * 0.18 * atten;
 
-	// the glitter takes the colour of the sun it is reflecting
 	let glint = mix( vec3f( 1.0 ), vec3f( 1.3, 0.75, 0.4 ), dusk );
 	color += glint * specular( n, l, eye, 600.0 * inverseSqrt( dot( dist, dist ) ) );
 
@@ -201,7 +176,6 @@ fn getSeaColor( p: vec3f, n: vec3f, l: vec3f, eye: vec3f, dist: vec3f, dusk: f32
 
 }
 
-// tracing
 fn getNormal( p: vec3f, eps: f32, seaTime: f32, choppy0: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32 ) -> vec3f {
 
 	let h = map( p, ITER_FRAGMENT, seaTime, choppy0, shipPos, shipDir, shipSpeed );
@@ -251,7 +225,6 @@ fn heightMapTracing( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, shipPos
 
 }
 
-// `dir` replaces the shadertoy's built-in fly camera, `ori` is the real camera position.
 fn getPixel( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, epsScale: f32, shipPos: vec2f, shipDir: vec2f, shipSpeed: f32, l: vec3f, dusk: f32 ) -> vec3f {
 
 	let hit = heightMapTracing( ori, dir, seaTime, choppy0, shipPos, shipDir, shipSpeed );
@@ -263,8 +236,8 @@ fn getPixel( ori: vec3f, dir: vec3f, seaTime: f32, choppy0: f32, epsScale: f32, 
 	return mix(
 		getSkyColor( dir, dusk ) + getSun( dir, l, dusk ),
 		getSeaColor( p, n, l, dir, dist, dusk ),
-		// GLSL: pow( smoothstep( 0.0, -0.02, dir.y ), 0.2 ) - written with ascending
-		// edges because WGSL leaves smoothstep() undefined when low >= high
+		// GLSL pow( smoothstep( 0.0, -0.02, dir.y ), 0.2 ), flipped because WGSL
+		// leaves smoothstep() undefined when low >= high
 		pow( 1.0 - smoothstep( - 0.02, 0.0, dir.y ), 0.2 )
 	);
 

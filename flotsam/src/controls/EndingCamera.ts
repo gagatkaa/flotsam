@@ -1,6 +1,5 @@
 import * as THREE from 'three/webgpu'
 
-/** how far out the camera ends up, and how it gets there */
 export interface Shot {
   /** distance from the boat across the water, in metres */
   radius: number
@@ -8,30 +7,21 @@ export interface Shot {
   height: number
   /** how far it swings round the boat on the way out, in radians */
   sweep: number
-  /**
-   * Where to end up instead, as a fixed angle round the boat (the same angle as
-   * Math.atan2(x, z) of the camera's offset from her). Held there, it does not
-   * circle, so a shot that has to keep something in frame stays put.
-   */
+  /** a fixed angle round the boat (atan2(x, z) of the offset) to settle at instead of circling */
   bearing?: number
-  /** moves a camera position that has ended up inside something back out into the open */
+  /** moves a camera position that ended up inside something back into the open */
   keepClear?: (position: THREE.Vector3) => void
-  /** the lens it settles on: narrower than the deck's, so the boat fills more of the frame */
   fov: number
 }
 
-/** seconds the pull-out takes before the camera settles into its orbit */
+/** seconds the pull-out takes */
 const PULL_OUT = 6
-/** seconds the gaze takes to turn from wherever you were looking to the boat */
+/** seconds the gaze takes to turn to the boat */
 const TURN = 2.2
-/** once settled it keeps circling, slowly, so the last shot never freezes */
+/** slow orbit once settled, so the last shot never freezes */
 const ORBIT = 0.05
 
-/**
- * The closing shot. The camera lifts off the deck, turns to face the boat and
- * pulls away up into the sky, swinging round her as it goes, so the end of the
- * voyage is something you watch happen rather than a page you are handed.
- */
+/** the closing shot: lifts off the deck, turns to the boat and pulls away */
 export class EndingCamera {
   active = false
 
@@ -54,7 +44,7 @@ export class EndingCamera {
     this.scene = scene
   }
 
-  /** take the camera off the deck, keeping exactly where it is and where it looks */
+  /** take the camera off the deck, keeping where it is and where it looks */
   start(focus: THREE.Vector3, shot: Shot) {
     this.scene.attach(this.camera)
     this.shot = shot
@@ -75,7 +65,7 @@ export class EndingCamera {
 
     const out = THREE.MathUtils.smootherstep(this.time, 0, PULL_OUT)
     const { bearing } = this.shot
-    // to a fixed bearing, the short way round; otherwise sweep, then keep circling
+    // to a fixed bearing the short way round; otherwise sweep, then keep circling
     const angle =
       bearing === undefined
         ? this.startAngle + this.shot.sweep * out + this.time * ORBIT

@@ -49,16 +49,6 @@ import { renderCompass, type CompassMark } from './ui/compass'
 import { button, choiceCard, introSheet, scoreSheet, sceneBlock, seasickWarning, voyageLog } from './ui/story'
 import { announceChanges, toast, type Tally } from './ui/toasts'
 
-// ----------------------------------------------------------------------- map
-// One pass top to bottom:
-//   1. renderer + scene    the WebGPURenderer and the scene it draws
-//   2. ocean shader        "Seascape" wired in as scene.backgroundNode
-//   3. the run + ship      the game state machine and the boat that sails it
-//   4. lighting + world    sun, sky, the islands and the rocks
-//   5. the hud             the reading panels, the pause menu, the compass
-//   6. the loop            every frame: shader uniforms -> sail -> physics
-//                          -> islands/rocks/flotsam -> pickups -> landing -> hud
-
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!
 
 const canvas = document.createElement('canvas')
@@ -73,8 +63,7 @@ if (!('gpu' in navigator)) {
 
 // ------------------------------------------------------- renderer + scene
 const renderer = new THREE.WebGPURenderer({ canvas, antialias: false })
-// Seascape is expensive (32 raymarch steps + 4 detailed height samples per pixel),
-// so render at 1 device pixel per CSS pixel.
+// the raymarched sea is expensive per pixel, so skip high-DPI rendering
 renderer.setPixelRatio(1)
 renderer.toneMapping = THREE.NoToneMapping
 await renderer.init()
@@ -85,30 +74,20 @@ scene.fog = haze
 
 // ---------------------------------------------------------------- ocean shader
 // "Seascape" by Alexander Alekseev aka TDM - https://www.shadertoy.com/view/Ms2SD1
-// `wgslFn` reads the signature of the entry function; the helpers it calls are
-// added to the shader module ahead of it with `wgsl`.
 const seascape = wgslFn(seascapeEntry, [wgsl(seascapeHelpers)])
 
 const uTime = uniform(0)
 const uChoppy = uniform(BASE_CHOPPY)
-// the boat's own wake: where she is, which way she points, and how fast
 const uShipPos = uniform(new THREE.Vector2(0, 0))
 const uShipDir = uniform(new THREE.Vector2(0, -1))
 const uShipSpeed = uniform(0)
 
-/**
- * The time of day, which the map pieces move on from noon to sunset. Its sun
- * direction is the one for everything, so the glitter on the sea, the light on
- * the boat and the disc in the sky all agree.
- */
 const daylight = new Daylight()
 const uSunDir = uniform(daylight.direction)
 const uDusk = uniform(0)
 
-// three renders scene.backgroundNode on a skybox sphere with its translation
-// stripped, so positionWorld is the world space view ray of this fragment.
-// The arguments are matched to the WGSL parameters by name. TypeScript cannot
-// read the WGSL, so it is told here that seascape() returns a vec3f colour.
+// backgroundNode is drawn on a skybox with translation stripped, so positionWorld
+// is the view ray. Arguments are matched to the WGSL parameters by name.
 const seaColor = seascape({
   rayDir: normalize(positionWorld),
   rayOrigin: cameraPosition,
@@ -122,13 +101,9 @@ const seaColor = seascape({
   dusk: uDusk,
 }) as THREE.Node<'vec3'>
 
-// Seascape outputs display-ready (sRGB) colours, like every Shadertoy shader.
-// The boat and islands are lit in three's linear working space and converted to
-// sRGB at the end, so mark the sea as sRGB already, or that conversion would
-// brighten and wash it out a second time.
+// Seascape outputs sRGB already; without this it would be converted twice and wash out
 scene.backgroundNode = colorSpaceToWorking(vec4(seaColor, 1), THREE.SRGBColorSpace)
 
-// the CPU mirror of the shader's wave field, so the ship rides the visible water
 const waves = new WaveField()
 
 // ---------------------------------------------------------------- the run + ship
@@ -138,14 +113,14 @@ const run = new Run({
   onVisited: putOutBeacon,
   onDepart() {
     sound.leave()
-    // a choice can change the boat, so hand the new numbers over and redraw
     ship.applyStats(run.stats)
     renderBuild()
     closePanels()
     lock()
   },
-  onDamage(amount) {
+  onDamage(amount): boolean {
     ship.damage(amount)
+    return ship.alive
   },
   onCharted: showCharted,
   onHome(log) {
@@ -169,22 +144,18 @@ const endingCamera = new EndingCamera(camera, scene)
 
 const sound = new Soundscape()
 
-/** the sound each island greets you with as you step ashore, keyed by island id */
 const ARRIVAL_SOUNDS: Partial<Record<string, Clip>> = {
   wreck: 'bell',
   gallows: 'door',
   kitchen: 'market',
 }
 
-// the sea can only begin after a gesture: start it on the very first click or
-// keypress, so it is already breathing by the time the player sets off.
+// audio can only start after a user gesture
 const wakeAudio = () => sound.start()
 window.addEventListener('pointerdown', wakeAudio, { once: true })
 window.addEventListener('keydown', wakeAudio, { once: true })
 
 // ---------------------------------------------------------- lighting + world
-// both lights take their colour, strength and direction from the daylight
-// every frame (see updateSky)
 const sun = new THREE.DirectionalLight()
 scene.add(sun)
 
@@ -192,15 +163,13 @@ const skyLight = new THREE.HemisphereLight()
 scene.add(skyLight)
 
 const physics = new Physics()
-// every island is a copy of the Blender island, so it has to be loaded first
 const world = buildWorld(await loadIsland())
 for (const island of world.islands) {
   scene.add(island.group)
   if (island.beacon) scene.add(island.beacon)
   physics.island(island.position.x, island.position.z, island.radius)
 }
-// rocks are set into the sea at its average height, so the swell washes up
-// them and drains off them instead of carrying them up and down like corks
+// rocks sit at the average sea level so the swell washes over them instead of carrying them
 const seaLevel = averageSeaLevel()
 for (const hazard of world.hazards) {
   hazard.mesh.position.set(hazard.position.x, seaLevel, hazard.position.z)
@@ -209,7 +178,6 @@ for (const hazard of world.hazards) {
 }
 for (const item of world.flotsam) scene.add(item.mesh)
 
-/** the height of the open sea, averaged over a patch of it and a stretch of time */
 function averageSeaLevel() {
   let sum = 0
   let samples = 0
@@ -254,7 +222,6 @@ const compass = {
   word: $<HTMLSpanElement>('#compass-word'),
 }
 
-/** the upgrades list and what is on board */
 function renderBuild() {
   buildEl.innerHTML = ''
   for (const [card, count] of run.counts()) {
@@ -272,9 +239,8 @@ function renderBuild() {
   loadFoodEl.textContent = `food ${run.provisions}`
 }
 
-// ---- panels. The intro lives in #chart, every other page of the story in #draft.
+// ---- panels: the intro lives in #chart, every other page of the story in #draft
 
-/** a panel of the game's own has the screen */
 function panelIsOpen() {
   return !chartEl.classList.contains('hidden') || !draftEl.classList.contains('hidden')
 }
@@ -294,7 +260,6 @@ function closePanels() {
   ship.hold = false
 }
 
-/** show these elements as the next page of the story */
 function openPanel(...content: HTMLElement[]) {
   draftEl.replaceChildren(...content)
   hidePause()
@@ -305,10 +270,8 @@ function openPanel(...content: HTMLElement[]) {
 }
 
 /**
- * A panel of the game's own is modal: the boat is anchored, the helm does
- * nothing and the pointer is handed back so the choice can be clicked. Browsers
- * can refuse a pointer lock request, so the unlock is re-asserted every frame
- * while the panel is up rather than trusted to land once.
+ * While a panel is up the boat is anchored and the pointer is released. Browsers
+ * can refuse an unlock, so this is re-asserted every frame rather than trusted once.
  */
 function applyModal() {
   const modal = panelIsOpen()
@@ -317,8 +280,6 @@ function applyModal() {
   return modal
 }
 
-// ---- opening: the situation, the islands, then cast off.
-// The intro is a page, not a popup: it stays up until Start sailing.
 function showIntro() {
   chartEl.replaceChildren(introSheet(), button('sail', 'Start sailing', showWarning))
 
@@ -328,7 +289,6 @@ function showIntro() {
   document.body.classList.remove('locked')
 }
 
-/** the motion sickness warning, on the same page as the intro, before the boat moves */
 function showWarning() {
   chartEl.replaceChildren(
     seasickWarning(),
@@ -352,7 +312,6 @@ function showNothingHere(island: Island) {
   )
 }
 
-// ---- arrival, beat one: what the island is, and what you find ashore
 function showTell(event: IslandEvent, island: Island) {
   const greeting = ARRIVAL_SOUNDS[island.id]
   if (greeting) sound.arrive(greeting)
@@ -363,37 +322,33 @@ function showTell(event: IslandEvent, island: Island) {
   )
 }
 
-// ---- arrival, beat two: the decision
 function showAshore(event: IslandEvent) {
   const hand = document.createElement('div')
   hand.className = 'choices'
 
   for (const choice of event.choices) {
-    // a flag set on an earlier island can remove a choice entirely
     if (choice.requires && !run.flags.has(choice.requires)) continue
     if (choice.blockedBy && run.flags.has(choice.blockedBy)) continue
-    hand.appendChild(choiceCard(choice, run.canAfford(choice), () => run.resolve(choice)))
+    const held = !!choice.gain && run.deck.includes(choice.gain)
+    hand.appendChild(choiceCard(choice, run.canAfford(choice), held, () => run.resolve(choice)))
   }
 
   openPanel(sceneBlock(event.title, event.adventure), hand, leaveButton())
 }
 
-/** back to the boat without choosing: the island stays unvisited, so you can return */
+/** back to the boat without choosing: the island stays unvisited */
 function leaveButton() {
   return button('leave', 'leave for now, back to the boat (Esc)', () => leaveIsland(false))
 }
 
 function leaveIsland(byKey: boolean) {
-  // the prompt may offer this island again straight away; it never forces a landing
   shownOn = null
   run.leave()
-  // Browsers do not count Esc as a gesture that may take the mouse, so the lock
-  // the departure asks for can be refused. Show the pause menu, whose Resume
-  // button can; it hides itself if the lock lands after all.
+  // Esc is not a gesture that may take the pointer, so the lock can be refused;
+  // the pause menu's Resume button can take it
   if (byKey && !controls.isLocked) showPause()
 }
 
-/** the score for the voyage as it stands, recorded against the best so far */
 function finalTally(home: boolean) {
   const score = scoreVoyage({
     home,
@@ -408,27 +363,22 @@ function finalTally(home: boolean) {
   return scoreSheet(score, recordBest(score.total))
 }
 
-/**
- * Sunk, you rise over the spot where she went down. Home, you drop in astern of
- * her, low enough that the sun she is sailing for is in the frame above her.
- */
 const SUNK_SHOT: Shot = { radius: 22, height: 9, sweep: 1.1, fov: 55 }
+// low and astern, so the sun she sails for is in frame
 const HOME_SHOT: Shot = { radius: 20, height: 4, sweep: 0, bearing: SUN_YAW, fov: 55 }
-/** seconds the closing shot plays before the last page of the story comes up */
+/** seconds the closing shot plays before the last page comes up */
 const SUNK_DELAY = 7
 const HOME_DELAY = 6
+/** open water the closing camera keeps between itself and any shore or rock */
+const CAMERA_ROOM = 6
 
-/** where the closing shot looks: the boat, at the level of the sea she is on */
 const endingFocus = new THREE.Vector3()
 function updateEndingFocus() {
   endingFocus.set(ship.position.x, ship.waterline + 0.6, ship.position.z)
   return endingFocus
 }
 
-/**
- * Swing round her whichever way keeps the most open water between the camera
- * and the nearest rock or island, so the shot does not end up inside one.
- */
+/** swing whichever way keeps the most open water, so the shot doesn't end inside a rock */
 function clearShot(shot: Shot): Shot {
   const from = camera.getWorldPosition(new THREE.Vector3())
   const angle = Math.atan2(from.x - ship.position.x, from.z - ship.position.z)
@@ -440,11 +390,7 @@ function clearShot(shot: Shot): Shot {
   return { ...shot, sweep: best, keepClear }
 }
 
-/**
- * Home, the camera wants to be astern of her with the sun ahead. If a shore or
- * a rock is in that spot, it settles a little to one side or the other instead,
- * as close to dead astern as the open water allows.
- */
+/** as close to dead astern as the open water allows */
 function clearHomeShot(shot: Shot): Shot {
   const ideal = shot.bearing ?? 0
   for (const step of [0, 1, -1, 2, -2, 3, -3, 4, -4]) {
@@ -454,7 +400,7 @@ function clearHomeShot(shot: Shot): Shot {
   return { ...shot, keepClear }
 }
 
-/** open water around the camera's way out to this bearing and distance from the boat */
+/** least open water along the camera's path out to this bearing and distance */
 function roomAlong(bearing: number, radius: number, from = bearing) {
   let least = Infinity
   for (const k of [0.4, 0.7, 1]) {
@@ -465,10 +411,6 @@ function roomAlong(bearing: number, radius: number, from = bearing) {
   return least
 }
 
-/** how much open water the closing camera keeps between itself and any shore or rock */
-const CAMERA_ROOM = 6
-
-/** if the camera has drifted into an island or a rock, move it straight back out */
 function keepClear(position: THREE.Vector3) {
   const near = physics.nearest(position.x, position.z)
   if (near.gap >= CAMERA_ROOM) return
@@ -476,11 +418,7 @@ function keepClear(position: THREE.Vector3) {
   position.z += near.nz * (CAMERA_ROOM - near.gap)
 }
 
-/**
- * The voyage is over. Before any page comes up, the camera leaves the deck and
- * pulls away into the sky so you watch it end: the boat breaking up and going
- * under, or sailing on home. A click or a key skips straight to the page.
- */
+/** the closing shot plays first; a click or key skips straight to the last page */
 function beginEnding(home: boolean, log: string[]) {
   sound.leave()
   ship.hold = false
@@ -511,7 +449,6 @@ function beginEnding(home: boolean, log: string[]) {
   window.addEventListener('keydown', show)
 }
 
-/** the last page of the story: what happened, the score, and the way back to the start */
 function showEnding(home: boolean, title: string, text: string, log: string[]) {
   const block = sceneBlock(title, text)
   block.append(finalTally(home), button('go', 'set sail again', () => location.reload()))
@@ -539,7 +476,6 @@ function showHome(log: string[]) {
   )
 }
 
-/** the chart is complete: going home is a choice you can make from anywhere */
 function showCharted() {
   sound.leave()
   renderBuild()
@@ -560,21 +496,13 @@ function showCharted() {
 const LANDING = 12
 
 /**
- * An island that has already shown its panel, so it cannot show it again while
- * you are still sitting on top of it. Cleared once you have actually sailed off
- * it. Without this, a panel that does not change phase re-fires every frame and
- * the player cannot get away from it.
+ * The island whose panel was last shown, so it is not offered again until you
+ * have sailed well clear of it.
  */
 let shownOn: string | null = null
 
-/** the island currently being offered, or null while nothing is in range */
 let landingTarget: Island | null = null
 
-/**
- * What putting you ashore actually does. Split out from the range check so the
- * player starts it — with E, or the prompt — rather than being swept into the
- * island's panel the moment they drift close.
- */
 function landOn(island: Island | null) {
   if (!island || run.phase !== 'sailing' || panelIsOpen() || isPaused()) return
 
@@ -583,8 +511,6 @@ function landOn(island: Island | null) {
 
   const event = eventFor(island.event)
   if (!event) {
-    // Never fail silently: a missing event would otherwise drop the player
-    // straight back into open water, which looks like nothing working.
     console.error(`no event written for island: ${island.id} (${island.event})`)
     run.visited.add(island.id)
     putOutBeacon(island)
@@ -595,9 +521,8 @@ function landOn(island: Island | null) {
   run.land(event, island)
 }
 
-// ---- pause: Esc releases the pointer, and releasing the pointer opens this.
-// A panel of the game's own also releases it, so only treat it as a pause when
-// nothing else has the screen.
+// ---- pause: Esc releases the pointer, and releasing it opens this
+
 function showPause() {
   const visited = run.visited.size
   const unvisited = world.islands.length - visited
@@ -622,16 +547,14 @@ function resume() {
 }
 
 /**
- * Hand the cursor back to the player. Browsers reject a pointer lock request
- * issued in the same tick as exitPointerLock, so wait for the document to
- * actually report unlocked before asking again.
+ * Browsers reject a pointer lock request issued right after exitPointerLock,
+ * so wait for the unlock to land and retry until it is accepted.
  */
 function lock() {
   document.body.classList.add('locked')
 
   const request = () => {
-    // once the voyage is over the closing shot has the camera, so stop asking
-    if (controls.isLocked || !controls.enabled) return
+    if (controls.isLocked || !controls.enabled || panelIsOpen()) return
     const result = canvas.requestPointerLock() as Promise<void> | undefined
     result?.catch(() => window.setTimeout(request, 120))
   }
@@ -654,18 +577,12 @@ $('#resume').addEventListener('click', resume)
 landEl.addEventListener('click', () => landOn(landingTarget))
 
 window.addEventListener('keydown', (event) => {
-  // E — or clicking the prompt — is what puts you ashore. Sailing close to an
-  // island only ever offers it.
   if (event.code === 'KeyE' || event.key.toLowerCase() === 'e') {
     landOn(landingTarget)
-  }
-  // Esc while the menu is up puts you straight back on the tiller
-  else if (event.code === 'Escape' && isPaused()) {
+  } else if (event.code === 'Escape' && isPaused()) {
     event.preventDefault()
     resume()
-  }
-  // Esc on an island walks you back to the boat
-  else if (event.code === 'Escape' && (run.phase === 'telling' || run.phase === 'ashore')) {
+  } else if (event.code === 'Escape' && (run.phase === 'telling' || run.phase === 'ashore')) {
     event.preventDefault()
     leaveIsland(true)
   }
@@ -673,12 +590,11 @@ window.addEventListener('keydown', (event) => {
 
 // ---- instruments
 
-/** with a Navigator's Glass the instruments show every island, not just the nearest */
+/** with a Spyglass the instruments show every island, not just the nearest */
 function hasGlass() {
   return run.stats.lookahead > 0
 }
 
-/** the closest island still holding a piece of chart */
 function nearestUnvisited(): Island | null {
   let best: Island | null = null
   let gap = Infinity
@@ -693,13 +609,6 @@ function nearestUnvisited(): Island | null {
   return best
 }
 
-/**
- * What the instruments can tell you. Without a Navigator's Glass you get the one
- * bearing your own reckoning gives you, to whichever island is nearest. With
- * one, you get every island and its leg, spent ones included, because a chart
- * that remembers where you have already been is worth as much as one that
- * tells you where to go next.
- */
 function renderBearings() {
   if (!hasGlass()) {
     const nearest = nearestUnvisited()
@@ -735,7 +644,7 @@ function renderBearings() {
 
 const lookDirection = new THREE.Vector3()
 
-/** which way the camera is looking, as a compass heading in degrees */
+/** camera look direction as a compass heading in degrees */
 function viewHeading(): number {
   camera.getWorldDirection(lookDirection)
   const degrees = (Math.atan2(lookDirection.x, -lookDirection.z) * 180) / Math.PI
@@ -761,8 +670,9 @@ renderBuild()
 
 // ----------------------------------------------------------------------- loop
 function resize() {
-  const width = window.innerWidth
-  const height = window.innerHeight
+  // a hidden or minimised window reports 0, which WebGPU rejects as a texture size
+  const width = Math.max(1, window.innerWidth)
+  const height = Math.max(1, window.innerHeight)
 
   renderer.setSize(width, height)
   camera.aspect = width / height
@@ -771,17 +681,13 @@ function resize() {
 window.addEventListener('resize', resize)
 resize()
 
-/** true on frames the boat is pressing into a rock, so a bump only charges once */
+/** a rock bump charges damage once per contact, not every frame */
 let grounded = false
-/** true on frames the hull is touching any solid, so a bump sounds only at the start */
 let wasTouching = false
-/** throttles the bearings list, which does not need 60 rebuilds a second */
 let bearingTimer = 0
-/** seconds at the helm since the crew last ate */
 let hungerClock = 0
-/** how often the crew eats a day's food, in seconds at the helm */
+/** seconds at the helm per day of food eaten */
 const MEAL_INTERVAL = 20
-/** the numbers on screen last frame, so every change can be announced */
 let tally = readTally()
 
 let previous = performance.now()
@@ -796,11 +702,10 @@ function animate() {
   updateSea(elapsed)
   updateSky(delta)
 
-  // no throttle and no steering unless you are actually sailing and holding
-  // the tiller. Without the isLocked check, W drives the boat from the pause menu.
+  // without the isLocked check, W drives the boat from the pause menu
   const sailing = run.phase === 'sailing' && controls.isLocked
   steerShip(delta, elapsed, sailing)
-  collide(delta)
+  collide()
   floatIslands(delta, elapsed)
   collectFlotsam(sailing)
   offerLanding(sailing)
@@ -814,9 +719,7 @@ function animate() {
   requestAnimationFrame(animate)
 }
 
-/** keep the shader and its CPU mirror on the same sea, and the sound on top of it */
 function updateSea(elapsed: number) {
-  // the sea closes in the more of the map you hold
   const choppy = choppyForPieces(run.pieces.size)
   uTime.value = elapsed
   uChoppy.value = choppy
@@ -826,7 +729,6 @@ function updateSea(elapsed: number) {
   const rough = Math.max(0, Math.min(1, (choppy - BASE_CHOPPY) / MAX_EXTRA_CHOP))
   sound.tick(rough, ship.speed, isPaused())
 
-  // the boat carves her own wake into the raymarched sea
   const wakeSpeed = Math.max(0, ship.speed - 0.5)
   uShipPos.value.set(ship.position.x, ship.position.z)
   uShipDir.value.set(ship.facing.x, ship.facing.z)
@@ -838,18 +740,11 @@ function updateSea(elapsed: number) {
   waves.shipSpeed = wakeSpeed
 }
 
-/**
- * Every piece of the map moves the clock on, so the afternoon wears away as the
- * chart fills in and the voyage ends at sunset. The sky, the lights and the haze
- * all follow the one clock.
- */
 function updateSky(delta: number) {
+  // uSunDir holds daylight.direction itself, so it needs no update here
   daylight.update(delta, run.pieces.size)
-  // uSunDir holds daylight.direction itself, so it is already up to date
   uDusk.value = daylight.hour * daylight.hour
 
-  // a directional light shines from its position towards the origin, so this
-  // lights the boat from where the sun is drawn
   sun.position.copy(daylight.direction).multiplyScalar(50)
   sun.color.copy(daylight.sunColor)
   sun.intensity = daylight.sunIntensity
@@ -863,7 +758,7 @@ function steerShip(delta: number, elapsed: number, sailing: boolean) {
   const modal = applyModal()
   const atHelm = sailing && !modal
   compassEl.classList.toggle('hidden', !atHelm)
-  // home, nobody is at the helm, but she turns for the sun and sails on into it
+  // home, nobody is at the helm: she turns for the sun and sails on into it
   const home = run.phase === 'home'
   if (home) ship.hold = false
   const throttle = atHelm ? controls.throttle : home ? 0.35 : 0
@@ -871,24 +766,18 @@ function steerShip(delta: number, elapsed: number, sailing: boolean) {
   ship.update(delta, waves, throttle, rudder)
   if (atHelm) passTime(delta)
 
-  // becalmed, the wind sets you down and you can do nothing about it. A wreck
-  // is past all of that: the tide takes her, not the wind.
-  if (!sailing && run.phase !== 'dead') {
+  // off the helm the wind sets her down, unless she is anchored or wrecked
+  if (!sailing && !ship.hold && run.phase !== 'dead') {
     const push = driftForPieces(run.pieces.size)
     ship.position.x += Math.sin(elapsed * 0.21) * push * delta
     ship.position.z += Math.cos(elapsed * 0.17) * push * delta
   }
 }
 
-/** how close, in metres, a shore or rock has to be before she bears away from it */
+/** how close a shore or rock has to be before she bears away from it on the way home */
 const GIVE_WAY = 22
 
-/**
- * Home, she makes for the sun, but the last piece is usually won on an island,
- * so the sun can lie straight through it. Near a shore or rock she leans away
- * from it and round it, harder the closer it is, and comes back onto the sun
- * once she is in open water.
- */
+/** the sun's heading, bent away from any shore or rock close by */
 function homeHeading() {
   let x = -Math.sin(SUN_YAW)
   let z = -Math.cos(SUN_YAW)
@@ -896,8 +785,7 @@ function homeHeading() {
   const near = physics.nearest(ship.position.x, ship.position.z)
   const lean = THREE.MathUtils.clamp(1 - near.gap / GIVE_WAY, 0, 1) * 2.5
   if (lean > 0) {
-    // round it on whichever side is nearer the sun, so she never stalls
-    // facing a shore with the sun pulling one way and the rocks the other
+    // round it on the side nearer the sun, so she never stalls facing the shore
     const side = -near.nz * x + near.nx * z >= 0 ? 1 : -1
     x += (near.nx - near.nz * side) * lean
     z += (near.nz + near.nx * side) * lean
@@ -905,38 +793,27 @@ function homeHeading() {
   return Math.atan2(-x, -z)
 }
 
-/** the rudder that swings her bow round to this heading, easing off as she comes onto it */
 function helmToward(yaw: number) {
   const off = Math.atan2(Math.sin(yaw - ship.yaw), Math.cos(yaw - ship.yaw))
-  // positive rudder turns her to starboard, which lowers her yaw
+  // positive rudder turns to starboard, which lowers yaw
   return THREE.MathUtils.clamp(-off * 1.5, -1, 1)
 }
 
-/** the clock runs while you sail: the score counts it, and the crew gets hungry */
 function passTime(delta: number) {
   run.sailTime += delta
   hungerClock += delta
   if (hungerClock < MEAL_INTERVAL) return
 
   hungerClock = 0
-  if (run.provisions === 0) return
-  run.eat()
-  // a short commons slows the crew down, so the boat needs the new numbers
+  if (!run.eat()) return
   ship.applyStats(run.stats)
   if (run.provisions === 2) toast(toastsEl, 'Food is running low', 'info')
   if (run.provisions === 0) toast(toastsEl, 'The larder is empty. The crew grows weak', 'cost')
 }
 
-/**
- * cannon-es answers what the boat touched this frame. She still sails by the
- * hand-rolled kinematics; physics just keeps her out of the rocks and slides
- * her along the shores instead of sailing through them.
- */
-function collide(delta: number) {
-  const hits = physics.step(delta, ship.position, ship.velocity)
-
-  // once she is gone she is gone: no shoving, no grinding, no damage. The wreck
-  // just lists over and goes under.
+/** physics only reports contacts; the boat still sails by Ship's own kinematics */
+function collide() {
+  const hits = physics.step(ship.position, ship.velocity)
   if (!ship.alive) return
 
   let touching = false
@@ -944,7 +821,6 @@ function collide(delta: number) {
   let hardestContact = 0
   let fastestRockHit = 0
   for (const hit of hits) {
-    // push her back out of whatever she is biting into, plus a hair of slack
     ship.position.x += hit.nx * (hit.depth + 0.4)
     ship.position.z += hit.nz * (hit.depth + 0.4)
 
@@ -956,37 +832,27 @@ function collide(delta: number) {
     }
   }
 
-  // nothing hurts or sounds while a menu or a panel has the screen, or once
-  // she is home: sailing into the sun, a rock cannot undo the ending
+  // nothing hurts while a menu or panel is up, or once she is sailing home
   const clearDeck = !isPaused() && !panelIsOpen() && run.phase !== 'home'
 
-  // the hull-slam sounds on first contact and not again until she is clear
   if (touching && !wasTouching && clearDeck) sound.bump(hardestContact)
   wasTouching = touching
 
-  // A bump costs a visible chunk of the hull, charged once per grinding
-  // episode. Calling damage() every frame drip-feeds the readout with a
-  // fraction a human cannot see; one charge per contact is a hit you feel.
-  if (grinding && !grounded) {
-    if (clearDeck) ship.damage(8 + Math.max(0, fastestRockHit - 1) * 0.8)
+  if (grinding && !grounded && clearDeck) {
+    ship.damage(8 + Math.max(0, fastestRockHit - 1) * 0.8)
     flashDamage()
   }
   grounded = grinding
 }
 
-/** restart the red vignette's CSS animation */
 function flashDamage() {
   damageFlash.classList.remove('on')
-  void damageFlash.offsetWidth // force a reflow, or the browser skips the restart
+  void damageFlash.offsetWidth // force a reflow so the animation restarts
   damageFlash.classList.add('on')
 }
 
-/**
- * Islands ride the water: heave on the swell, and lean into its slope the way a
- * hull does, but slower, because land is heavier than a boat. Rocks just sit on it.
- */
+/** islands heave and lean on the swell a beat behind it; rocks stay put */
 function floatIslands(delta: number, elapsed: number) {
-  // a beat behind the water: land heaves, it does not snap
   const follow = 1 - Math.exp(-1.6 * delta)
   const lean = 2.2
 
@@ -1009,20 +875,16 @@ function floatIslands(delta: number, elapsed: number) {
     island.group.rotation.x = ride.pitch
     island.group.rotation.z = ride.roll
 
-    // the beacon breathes, so the eye catches it on the horizon
     if (island.beacon) {
       island.beacon.position.set(x, ride.height + 44, z)
       island.beacon.material.opacity = 0.24 + Math.sin(elapsed * 1.6 + x * 0.1) * 0.08
     }
   }
 
-  // rocks stand still and the sea moves round them: only the waterline they
-  // darken and foam against goes up and down
   for (const hazard of world.hazards) {
     hazard.water.value = waves.height(hazard.position.x, hazard.position.z)
   }
 
-  // wreckage turns slowly and rocks on the swell
   for (const item of world.flotsam) {
     if (item.collected) continue
     const { x, z } = item.position
@@ -1032,7 +894,6 @@ function floatIslands(delta: number, elapsed: number) {
   }
 }
 
-/** sail into floating wreckage to haul it aboard */
 function collectFlotsam(sailing: boolean) {
   if (!sailing || !ship.alive) return
 
@@ -1043,29 +904,22 @@ function collectFlotsam(sailing: boolean) {
     item.mesh.removeFromParent()
     run.addCargo(item.loot.provisions, item.loot.gold)
     ship.repair(item.loot.repair ?? 0)
-    // food and gold both change how she handles
     ship.applyStats(run.stats)
     toast(toastsEl, `Picked up ${item.loot.label}`, 'info')
     sound.play('chest')
   }
 }
 
-/**
- * No destination was ever chosen, so you simply arrive wherever you happen to
- * have sailed. Landing is an offer, not a trap: coast within sight of the beach
- * and the game asks; it never grabs you.
- */
+/** coming within range only offers a landing; E or the prompt actually lands */
 function offerLanding(sailing: boolean) {
   let offered: Island | null = null
   let offeredGap = Infinity
   for (const island of world.islands) {
     const distance = flatDistance(ship.position, island.position)
 
-    // forget an island once you are well clear of it, so you can come back
     if (shownOn === island.id && distance > island.radius + LANDING * 6) shownOn = null
 
     if (!sailing || shownOn === island.id) continue
-    // a spent island cannot be landed on again
     if (run.visited.has(island.id)) continue
     if (distance > island.radius + LANDING) continue
 
@@ -1074,14 +928,12 @@ function offerLanding(sailing: boolean) {
       offered = island
     }
   }
-  // name the island on the prompt, but only touch the DOM when the offer changes
   if (offered && offered !== landingTarget) landNameEl.textContent = offered.name
   landingTarget = offered
 
   landEl.classList.toggle('hidden', !(landingTarget && sailing && !panelIsOpen()))
 }
 
-/** the numbers the pop-up messages watch */
 function readTally(): Tally {
   return {
     health: Math.round(ship.hp),
@@ -1105,7 +957,6 @@ function updateHud(delta: number) {
   speedEl.textContent = `${(ship.speed * 1.2).toFixed(1)} knots`
   piecesEl.textContent = `${run.pieces.size}/${CHART_PIECES}`
 
-  // rewriting the list every frame is pointless, so a few times a second will do
   bearingTimer += delta
   if (bearingTimer > 0.2) {
     bearingTimer = 0
