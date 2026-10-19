@@ -28,9 +28,9 @@ export function introSheet() {
     <div class="key-groups">
       <div class="key-group">
         <h4>movement</h4>
-        <div class="key"><b>W</b> speed up</div>
-        <div class="key"><b>S</b> slow down</div>
-        <div class="key"><b>A</b><b>D</b> steer</div>
+        <div class="key"><b>W</b><b>↑</b> speed up</div>
+        <div class="key"><b>S</b><b>↓</b> slow down</div>
+        <div class="key"><b>A</b><b>D</b><b>←</b><b>→</b> steer</div>
         <div class="key"><b>Mouse</b> look</div>
       </div>
       <div class="key-group">
