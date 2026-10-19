@@ -55,7 +55,9 @@ function bowTip(boat: THREE.Object3D) {
 
 
 export async function loadBoat(onMaterial: (material: THREE.MeshStandardNodeMaterial) => void) {
-  const model = await loader.loadAsync(boatUrl)
+  const file = await loader.loadAsync(boatUrl)
+  const model = file.getObjectByName('Rowboat') ?? file
+  model.removeFromParent()
   useNodeMaterials(model, onMaterial)
   const boat = wrap(model)
 
