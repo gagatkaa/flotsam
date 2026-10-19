@@ -1485,3 +1485,27 @@ body {
     color: var(--ink);
   }
 }
+
+/* ------------------------------------------------------------- the ending */
+/* the voyage is over: the instruments go, and the closing shot has the screen */
+#hud,
+#readout,
+#toasts {
+  transition: opacity 900ms ease;
+}
+
+body.ending #hud,
+body.ending #readout,
+body.ending #toasts,
+body.ending #compass,
+body.ending #land,
+body.ending #damage {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* the last page sits over the water lightly, so the camera can still be seen circling */
+body.ending #draft {
+  background: radial-gradient(circle at 50% 50%, rgba(3, 12, 20, 0.5), rgba(3, 12, 20, 0.15));
+  backdrop-filter: none;
+}

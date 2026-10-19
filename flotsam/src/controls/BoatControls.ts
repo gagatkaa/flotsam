@@ -33,7 +33,7 @@ export class BoatControls extends PointerLockControls {
     // Ignore clicks that land inside a panel, or picking an island would
     // immediately lock the pointer away from the player.
     window.addEventListener('click', (event) => {
-      if (this.isLocked) return
+      if (this.isLocked || !this.enabled) return
       if ((event.target as HTMLElement).closest('#chart, #draft, #overlay, #pause, #land')) return
       this.lock()
     })

@@ -21,6 +21,7 @@ import seascapeHelpers from './shaders/water/lib.wgsl?raw'
 import seascapeEntry from './shaders/water/fragment.wgsl?raw'
 
 import { BoatControls } from './controls/BoatControls'
+import { EndingCamera, type Shot } from './controls/EndingCamera'
 import { Ship } from './objects/Ship'
 import { loadIsland } from './objects/models'
 import { WaveField, BASE_CHOPPY } from './objects/WaveField'
@@ -136,11 +137,11 @@ const run = new Run({
   onCharted: showCharted,
   onHome(log) {
     renderBuild()
-    showHome(log)
+    beginEnding(true, log)
   },
   onSunk(log) {
     renderBuild()
-    showSunk(log)
+    beginEnding(false, log)
   },
 })
 
@@ -151,6 +152,7 @@ const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 2000)
 ship.cameraMount.add(camera)
 
 const controls = new BoatControls(camera, canvas)
+const endingCamera = new EndingCamera(camera, scene)
 
 const sound = new Soundscape()
 
@@ -370,9 +372,86 @@ function finalTally(home: boolean) {
   return scoreSheet(score, recordBest(score.total))
 }
 
+/** sunk, you rise over the spot where she went down; home, you watch her sail on */
+const SUNK_SHOT: Shot = { radius: 22, height: 9, sweep: 1.1, fov: 55 }
+const HOME_SHOT: Shot = { radius: 34, height: 14, sweep: -1.4, fov: 50 }
+/** seconds the closing shot plays before the last page of the story comes up */
+const SUNK_DELAY = 7
+const HOME_DELAY = 6
+
+/** where the closing shot looks: the boat, at the level of the sea she is on */
+const endingFocus = new THREE.Vector3()
+function updateEndingFocus() {
+  endingFocus.set(ship.position.x, ship.waterline + 0.6, ship.position.z)
+  return endingFocus
+}
+
+/**
+ * Swing round her whichever way keeps the most open water between the camera
+ * and the nearest rock or island, so the shot does not end up inside one.
+ */
+function clearShot(shot: Shot): Shot {
+  const from = camera.getWorldPosition(new THREE.Vector3())
+  const angle = Math.atan2(from.x - ship.position.x, from.z - ship.position.z)
+  const point = new THREE.Vector3()
+
+  const room = (sweep: number) => {
+    let least = Infinity
+    for (const k of [0.4, 0.7, 1]) {
+      point.set(
+        ship.position.x + Math.sin(angle + sweep * k) * shot.radius * k,
+        0,
+        ship.position.z + Math.cos(angle + sweep * k) * shot.radius * k,
+      )
+      for (const solid of [...world.islands, ...world.hazards]) {
+        least = Math.min(least, flatDistance(point, solid.position) - solid.radius)
+      }
+    }
+    return least
+  }
+
+  const sweeps = [shot.sweep, -shot.sweep, shot.sweep + 1.6, -shot.sweep - 1.6]
+  const best = sweeps.reduce((a, b) => (room(b) > room(a) ? b : a))
+  return { ...shot, sweep: best }
+}
+
+/**
+ * The voyage is over. Before any page comes up, the camera leaves the deck and
+ * pulls away into the sky so you watch it end: the boat breaking up and going
+ * under, or sailing on home. A click or a key skips straight to the page.
+ */
+function beginEnding(home: boolean, log: string[]) {
+  sound.leave()
+  ship.hold = false
+  if (!home) ship.sink()
+
+  hidePanels()
+  hidePause()
+  landEl.classList.add('hidden')
+  document.body.classList.remove('locked')
+  document.body.classList.add('ending')
+  controls.enabled = false
+  if (controls.isLocked) controls.unlock()
+
+  endingCamera.start(updateEndingFocus(), clearShot(home ? HOME_SHOT : SUNK_SHOT))
+
+  let shown = false
+  const show = () => {
+    if (shown) return
+    shown = true
+    window.clearTimeout(timer)
+    window.removeEventListener('pointerdown', show)
+    window.removeEventListener('keydown', show)
+    if (home) showHome(log)
+    else showSunk(log)
+  }
+  const timer = window.setTimeout(show, (home ? HOME_DELAY : SUNK_DELAY) * 1000)
+  window.addEventListener('pointerdown', show)
+  window.addEventListener('keydown', show)
+}
+
 /** the last page of the story: what happened, the score, and the way back to the start */
 function showEnding(home: boolean, title: string, text: string, log: string[]) {
-  sound.leave()
   const block = sceneBlock(title, text)
   block.append(finalTally(home), button('go', 'set sail again', () => location.reload()))
   openPanel(block, ...(log.length ? [voyageLog(log)] : []))
@@ -490,7 +569,8 @@ function lock() {
   document.body.classList.add('locked')
 
   const request = () => {
-    if (controls.isLocked) return
+    // once the voyage is over the closing shot has the camera, so stop asking
+    if (controls.isLocked || !controls.enabled) return
     const result = canvas.requestPointerLock() as Promise<void> | undefined
     result?.catch(() => window.setTimeout(request, 120))
   }
@@ -666,6 +746,7 @@ function animate() {
   if (!ship.alive && run.phase !== 'dead') run.sink()
 
   updateHud(delta)
+  if (endingCamera.active) endingCamera.update(delta, updateEndingFocus())
 
   renderer.render(scene, camera)
   requestAnimationFrame(animate)
@@ -699,7 +780,11 @@ function steerShip(delta: number, elapsed: number, sailing: boolean) {
   const modal = applyModal()
   const atHelm = sailing && !modal
   compassEl.classList.toggle('hidden', !atHelm)
-  ship.update(delta, waves, atHelm ? controls.throttle : 0, atHelm ? controls.rudder : 0)
+  // home, nobody is at the helm, but she keeps sailing on under the last page
+  const home = run.phase === 'home'
+  if (home) ship.hold = false
+  const throttle = atHelm ? controls.throttle : home ? 0.35 : 0
+  ship.update(delta, waves, throttle, atHelm ? controls.rudder : 0)
   if (atHelm) passTime(delta)
 
   // becalmed, the wind sets you down and you can do nothing about it. A wreck

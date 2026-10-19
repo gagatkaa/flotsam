@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu'
+import { clamp, color, materialColor, mix, positionWorld, uniform } from 'three/tsl'
 import { loadBoat } from './models'
 import type { WaveField } from './WaveField'
 import type { Stats } from '../game/stats'
@@ -40,6 +41,20 @@ const CAMERA_HEIGHT = 0.85
 const CAMERA_AFT = -0.9
 
 /**
+ * Where the hull snaps when she goes down, as a distance aft of the middle: a
+ * little behind the mast, so the mast and most of the sail go down with the bow.
+ */
+const BREAK_AT = 0.25
+
+/**
+ * The sea is drawn behind everything, so it cannot hide what is under it. The
+ * wreck fades into this colour as it goes deeper, and is gone entirely by
+ * SUNK_DEPTH, so she reads as sinking into the water rather than through it.
+ */
+const SEA_DEEP = 0x0a2633
+const SUNK_DEPTH = 3.5
+
+/**
  * The rowboat model (boat.fbx, made in Blender) riding the CPU mirror of the shader's wave
  * field. Every handling number comes from the player's Stats, so whatever an
  * island gives you is just a change to that object.
@@ -74,6 +89,14 @@ export class Ship {
   private flashTimer = 0
   private sinkTimer = 0
 
+  /** the loaded model, once it has arrived */
+  private boat: THREE.Object3D | null = null
+  /** the two halves she breaks into when she goes down */
+  private halves: { bow: THREE.Group; stern: THREE.Group } | null = null
+  /** the height of the sea around her, and whether the sinking fade is on */
+  private readonly uWater = uniform(0)
+  private readonly uSubmerge = uniform(0)
+
   constructor(stats: Stats) {
     this.stats = stats
     this.hp = stats.hull
@@ -83,10 +106,18 @@ export class Ship {
 
     // handling is live from the first frame; the mesh appears a beat later.
     // Every material is remembered so a hit can flash the whole boat red.
-    const remember = (material: THREE.MeshStandardNodeMaterial) =>
+    // Each one also learns to fade into the sea below the waterline once she is
+    // sinking, and to vanish below SUNK_DEPTH.
+    const remember = (material: THREE.MeshStandardNodeMaterial) => {
       this.tints.push({ material, base: material.color.clone() })
+      const depth = this.uWater.sub(positionWorld.y)
+      const drowned = clamp(depth.div(SUNK_DEPTH), 0, 1).mul(this.uSubmerge)
+      material.colorNode = mix(materialColor, color(SEA_DEEP), drowned)
+      material.maskNode = this.uSubmerge.lessThan(0.5).or(depth.lessThan(SUNK_DEPTH))
+    }
     loadBoat(remember)
       .then(({ boat, bow }) => {
+        this.boat = boat
         this.deck.add(boat)
         this.cameraMount.position.x = bow.x
       })
@@ -119,10 +150,52 @@ export class Ship {
     if (this.sinking) return
     this.hp -= amount * this.stats.frailty
     this.flashTimer = 0.14
-    if (this.hp <= 0) {
-      this.hp = 0
-      this.sinking = true
-    }
+    if (this.hp <= 0) this.sink()
+  }
+
+  /** she is done for: the hull snaps in two and both halves go under */
+  sink() {
+    if (this.sinking) return
+    this.hp = 0
+    this.sinking = true
+    this.uSubmerge.value = 1
+    this.breakHull()
+  }
+
+  /**
+   * Cut the boat in two at BREAK_AT. Every triangle goes to whichever side of
+   * the cut its middle is on, so the break is ragged, like splintered planking.
+   * Each half hangs from the break, so tipping a half lifts its far end.
+   */
+  private breakHull() {
+    const boat = this.boat
+    if (!boat) return
+
+    this.deck.updateMatrixWorld(true)
+    const toDeck = this.deck.matrixWorld.clone().invert()
+    const bow = new THREE.Group()
+    const stern = new THREE.Group()
+    bow.position.z = BREAK_AT
+    stern.position.z = BREAK_AT
+
+    boat.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+      // bake the mesh into the deck's space, measured from the break
+      const source = child.geometry as THREE.BufferGeometry
+      const geometry = source.index ? source.toNonIndexed() : source.clone()
+      geometry.applyMatrix4(toDeck.clone().multiply(child.matrixWorld))
+      geometry.translate(0, 0, -BREAK_AT)
+
+      const materials: THREE.Material[] = Array.isArray(child.material) ? child.material : [child.material]
+      for (const piece of splitAtZero(geometry, materials)) {
+        ;(piece.forward ? bow : stern).add(piece.mesh)
+      }
+      geometry.dispose()
+    })
+
+    boat.removeFromParent()
+    this.deck.add(bow, stern)
+    this.halves = { bow, stern }
   }
 
   update(delta: number, waves: WaveField, throttle: number, rudder: number) {
@@ -213,8 +286,9 @@ export class Ship {
       // the camera rides the deck, so a full capsize would read as the world
       // spinning out of control. Sink slow, list slow.
       targetPitch = 0
-      targetRoll = 0.22
+      targetRoll = 0.08
       follow = 1 - Math.min(1, 1.1 * delta)
+      this.breakApart()
     } else {
       // ---- heel under sail: she lies over with way on, and leans further into
       // a turn. Without this the boat sits bolt upright under full sail, which
@@ -229,11 +303,44 @@ export class Ship {
     this.pitch += (targetPitch - this.pitch) * follow
     this.roll += (targetRoll - this.roll) * follow
 
-    this.position.y = this.smoothedHeight + this.stats.rideHeight - Math.min(this.sinkTimer, 9) * 0.9
+    this.uWater.value = this.smoothedHeight
+    this.position.y = this.smoothedHeight + this.stats.rideHeight - this.sunkBy()
     this.rig.position.set(x, this.position.y, z)
     this.rig.rotation.y = this.yaw
     this.deck.rotation.x = this.pitch
     this.deck.rotation.z = this.roll
+  }
+
+  /** the sea level where she lies, for anything that wants to look at her */
+  get waterline() {
+    return this.smoothedHeight
+  }
+
+  /** how far under she has gone: slow while she fills, then faster once she goes */
+  private sunkBy() {
+    const t = this.sinkTimer
+    return Math.min(14, 0.2 * t + 0.11 * t * t)
+  }
+
+  /**
+   * The two halves fold up into a V about the break: the broken middle drags
+   * them down, so bow and stern both rise, drift apart and roll away from each
+   * other. The longer she goes, the steeper they stand.
+   */
+  private breakApart() {
+    if (!this.halves) return
+    const t = this.sinkTimer
+    const snap = THREE.MathUtils.smootherstep(t, 0, 3)
+    const tilt = Math.min(1.25, 0.55 * snap + 0.09 * t)
+    const { bow, stern } = this.halves
+
+    bow.rotation.x = tilt
+    bow.rotation.z = 0.3 * snap
+    bow.position.set(0.15 * snap, 0, BREAK_AT - 0.7 * snap - 0.05 * t)
+
+    stern.rotation.x = -tilt * 0.85
+    stern.rotation.z = -0.35 * snap
+    stern.position.set(-0.2 * snap, 0, BREAK_AT + 0.7 * snap + 0.05 * t)
   }
 
   /** tint the hull red for a moment after a hit */
@@ -247,4 +354,44 @@ export class Ship {
       if (hit) material.color.lerp(HIT_COLOR, 0.75)
     }
   }
+}
+
+/**
+ * One mesh, cut at z = 0 into the triangles ahead of it (the bow side, -z) and
+ * those behind it: one new mesh per side and material.
+ */
+function splitAtZero(geometry: THREE.BufferGeometry, materials: THREE.Material[]) {
+  const position = geometry.attributes.position
+  const triangles = position.count / 3
+  const groups = geometry.groups.length ? geometry.groups : [{ start: 0, count: position.count, materialIndex: 0 }]
+
+  // triangle numbers, sorted by side and then by material
+  const sorted = new Map<string, { forward: boolean; material: number; list: number[] }>()
+  for (const group of groups) {
+    const material = group.materialIndex ?? 0
+    const last = Math.min(triangles, (group.start + group.count) / 3)
+    for (let tri = group.start / 3; tri < last; tri++) {
+      const z = position.getZ(tri * 3) + position.getZ(tri * 3 + 1) + position.getZ(tri * 3 + 2)
+      const forward = z < 0
+      const key = `${forward}:${material}`
+      let bucket = sorted.get(key)
+      if (!bucket) sorted.set(key, (bucket = { forward, material, list: [] }))
+      bucket.list.push(tri)
+    }
+  }
+
+  return [...sorted.values()].map(({ forward, material, list }) => {
+    const piece = new THREE.BufferGeometry()
+    for (const [name, attribute] of Object.entries(geometry.attributes)) {
+      const size = attribute.itemSize
+      const array = new Float32Array(list.length * 3 * size)
+      list.forEach((tri, n) => {
+        for (let v = 0; v < 3; v++) {
+          for (let c = 0; c < size; c++) array[(n * 3 + v) * size + c] = attribute.getComponent(tri * 3 + v, c)
+        }
+      })
+      piece.setAttribute(name, new THREE.BufferAttribute(array, size))
+    }
+    return { forward, mesh: new THREE.Mesh(piece, materials[material] ?? materials[0]) }
+  })
 }
