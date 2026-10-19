@@ -22,8 +22,6 @@ export interface Island {
   /** key into the event table in events.ts */
   event: string
   group: THREE.Group
-  /** the cloth on the flag pole, raised once you have been here, so the loop can wave it */
-  flag: THREE.Object3D | null
   /** the glowing column over an island you have not landed on yet */
   beacon: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicNodeMaterial> | null
   /**
@@ -225,7 +223,6 @@ export function buildWorld(islandModel: THREE.Object3D, seed = Math.random() * 0
       position,
       radius,
       group,
-      flag: null,
       beacon,
       ride: { height: 0, pitch: 0, roll: 0 },
     })
@@ -263,44 +260,14 @@ export function buildWorld(islandModel: THREE.Object3D, seed = Math.random() * 0
 }
 
 /**
- * Raise a flag on the beach. This is the only permanent mark the game leaves on
- * the world, so it doubles as the way the player knows an island is spent: you
- * cannot land on it twice, and the flag is why that reads at two hundred metres.
+ * Put out the island's beacon once you have been ashore. The column of light
+ * over every island you have not walked yet is the only mark the game leaves
+ * on the world, so its going out is how the player knows an island is spent:
+ * you cannot land on it twice, and that has to read from two hundred metres.
  */
-export function raiseFlag(island: Island) {
-  if (island.flag) return
-
+export function putOutBeacon(island: Island) {
   island.beacon?.removeFromParent()
   island.beacon = null
-
-  const timber = new THREE.MeshStandardNodeMaterial({ color: 0x53442f, roughness: 0.9 })
-  const cloth = new THREE.MeshStandardNodeMaterial({
-    color: 0x35b06a,
-    roughness: 0.85,
-    side: THREE.DoubleSide,
-  })
-
-  const pole = new THREE.Group()
-
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 4.6, 5), timber)
-  mast.position.y = 2.3
-  pole.add(mast)
-
-  // a plane with enough segments to actually bend when the loop moves it
-  const banner = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.05, 7, 3), cloth)
-  banner.position.set(0.9, 3.75, 0)
-  pole.add(banner)
-
-  // stand it up on the beach, clear of the rocks. Hash the id so each flag
-  // lands in a different spot rather than all of them in a neat ring.
-  const seed = [...island.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7)
-  const angle = ((seed % 360) / 360) * Math.PI * 2
-  const out = island.radius * 0.6
-  pole.position.set(Math.sin(angle) * out, 0.4, Math.cos(angle) * out)
-  pole.rotation.y = angle
-
-  island.group.add(pole)
-  island.flag = banner
 }
 
 /** the island's hue as a CSS colour, for the chart marks that carry it */

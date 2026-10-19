@@ -35,7 +35,7 @@ import {
   driftForPieces,
   flatDistance,
   MAX_EXTRA_CHOP,
-  raiseFlag,
+  putOutBeacon,
   tintCss,
   type Island,
 } from './game/world'
@@ -135,7 +135,7 @@ const waves = new WaveField()
 const run = new Run({
   onTell: showTell,
   onAshore: showAshore,
-  onVisited: raiseFlag,
+  onVisited: putOutBeacon,
   onDepart() {
     sound.leave()
     // a choice can change the boat, so hand the new numbers over and redraw
@@ -587,7 +587,7 @@ function landOn(island: Island | null) {
     // straight back into open water, which looks like nothing working.
     console.error(`no event written for island: ${island.id} (${island.event})`)
     run.visited.add(island.id)
-    raiseFlag(island)
+    putOutBeacon(island)
     showNothingHere(island)
     return
   }
@@ -1013,14 +1013,6 @@ function floatIslands(delta: number, elapsed: number) {
     if (island.beacon) {
       island.beacon.position.set(x, ride.height + 44, z)
       island.beacon.material.opacity = 0.24 + Math.sin(elapsed * 1.6 + x * 0.1) * 0.08
-    }
-
-    // the flag is the only thing on these islands that moves on its own, which
-    // is what makes it readable as a signal from a distance
-    if (island.flag) {
-      const gust = elapsed * 2.3 + x * 0.05
-      island.flag.rotation.z = Math.sin(gust) * 0.14
-      island.flag.rotation.y = Math.sin(gust * 0.7) * 0.5
     }
   }
 

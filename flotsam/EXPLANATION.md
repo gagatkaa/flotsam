@@ -104,7 +104,7 @@ flotsam/
     │   ├── events.ts         the story text and choices for each island (data)
     │   ├── cards.ts          the upgrades a choice can give you (data)
     │   ├── stats.ts          turns upgrades + cargo into the boat's handling numbers
-    │   ├── world.ts          builds the islands, rocks, beacons, flags; bearings
+    │   ├── world.ts          builds the islands, rocks, beacons; bearings
     │   ├── flotsam.ts        floating wreckage: where it goes, what it gives
     │   └── score.ts          the final score, rating and best score
     └── ui/
@@ -378,8 +378,8 @@ same world. Each new game picks a random seed.
    means sailing close to the rocks. Each is a crate (+2 food), a coin barrel (+10 gold) or planks
    (+10 health).
 
-When you make a choice on an island, `raiseFlag()` removes its beacon and puts a waving flag on its
-beach, so you can see from a distance that it is done.
+When you make a choice on an island, `putOutBeacon()` removes its column of light, so you can
+see from a distance that it is done.
 
 `bearingAndRange()` gives the compass direction and distance to a point, used by the HUD.
 
@@ -465,8 +465,8 @@ animate()
       passTime(...)            → sailing clock, food
       if not at the helm: the wind slowly drifts the boat
  5. collide(delta)              → Physics.step → push out, hit sound, damage, red flash
- 6. floatIslands(...)           → islands heave and lean, beacons pulse, flags wave,
-                                  rocks and wreckage sit on the waves
+ 6. floatIslands(...)           → islands heave and lean, beacons pulse,
+                                  rocks stand in the swell, wreckage rides it
  7. collectFlotsam(...)         → wreckage within reach: add cargo, repair, sound, message
  8. offerLanding(...)           → is an island close enough to show "E go ashore"?
  9. if the hull is gone → run.sink()
