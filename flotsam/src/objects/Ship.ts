@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu'
 import { clamp, color, materialColor, mix, positionWorld, uniform } from 'three/tsl'
 import { loadBoat } from './models'
-import type { WaveField } from './WaveField'
+import { SEA_DEEP, type WaveField } from './WaveField'
 import type { Stats } from '../game/stats'
 
 /** half the hull's length: how far fore and aft she feels the waves */
@@ -63,11 +63,9 @@ const CAMERA_AFT = -0.9
 const BREAK_AT = 0.25
 
 /**
- * The sea is drawn behind everything, so it cannot hide what is under it. The
- * wreck fades into this colour as it goes deeper, and is gone entirely by
+ * The wreck fades into SEA_DEEP as it goes deeper, and is gone entirely by
  * SUNK_DEPTH, so she reads as sinking into the water rather than through it.
  */
-const SEA_DEEP = 0x0a2633
 const SUNK_DEPTH = 3.5
 
 /**

@@ -199,11 +199,32 @@ for (const island of world.islands) {
   if (island.beacon) scene.add(island.beacon)
   physics.island(island.position.x, island.position.z, island.radius)
 }
+// rocks are set into the sea at its average height, so the swell washes up
+// them and drains off them instead of carrying them up and down like corks
+const seaLevel = averageSeaLevel()
 for (const hazard of world.hazards) {
+  hazard.mesh.position.set(hazard.position.x, seaLevel, hazard.position.z)
   scene.add(hazard.mesh)
   physics.rock(hazard.position.x, hazard.position.z, hazard.radius)
 }
 for (const item of world.flotsam) scene.add(item.mesh)
+
+/** the height of the open sea, averaged over a patch of it and a stretch of time */
+function averageSeaLevel() {
+  let sum = 0
+  let samples = 0
+  for (let t = 0; t < 20; t += 2) {
+    waves.time = t
+    for (let x = -60; x <= 60; x += 6) {
+      for (let z = -60; z <= 60; z += 6) {
+        sum += waves.height(x + 500, z + 500)
+        samples++
+      }
+    }
+  }
+  waves.time = 0
+  return sum / samples
+}
 
 // --------------------------------------------------------------------- the hud
 const overlay = $<HTMLDivElement>('#overlay')
@@ -1003,9 +1024,10 @@ function floatIslands(delta: number, elapsed: number) {
     }
   }
 
+  // rocks stand still and the sea moves round them: only the waterline they
+  // darken and foam against goes up and down
   for (const hazard of world.hazards) {
-    const { x, z } = hazard.position
-    hazard.mesh.position.set(x, waves.height(x, z), z)
+    hazard.water.value = waves.height(hazard.position.x, hazard.position.z)
   }
 
   // wreckage turns slowly and rocks on the swell

@@ -8,6 +8,13 @@ const ITER_GEOMETRY = 3
 
 export const BASE_CHOPPY = 4
 
+/**
+ * The sea is drawn behind everything, so it cannot hide what is under it.
+ * Anything that sits in the water fades into this colour below the surface, so
+ * it reads as being in the sea rather than standing in front of it.
+ */
+export const SEA_DEEP = 0x0a2633
+
 const fract = (v: number) => v - Math.floor(v)
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 const smoothstep = (edge0: number, edge1: number, x: number) => {

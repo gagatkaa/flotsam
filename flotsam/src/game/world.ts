@@ -1,11 +1,14 @@
 import * as THREE from 'three/webgpu'
 import { BASE_CHOPPY } from '../objects/WaveField'
+import { makeRock } from '../objects/rocks'
 import { scatterFlotsam, type Flotsam } from './flotsam'
 
 export interface Hazard {
   position: THREE.Vector3
   radius: number
   mesh: THREE.Object3D
+  /** the height of the sea at the rock, which its stone fades and foams against */
+  water: { value: number }
 }
 
 export interface Island {
@@ -145,29 +148,6 @@ function makeBeacon(tint: number) {
   return new THREE.Mesh(new THREE.CylinderGeometry(1.2, 2.6, 90, 16, 1, true), material)
 }
 
-/** two or three boulders huddled together */
-function makeRock(radius: number, random: () => number) {
-  const group = new THREE.Group()
-  const material = new THREE.MeshStandardNodeMaterial({
-    color: 0x5c5750,
-    roughness: 0.95,
-    flatShading: true,
-  })
-
-  const count = 2 + Math.floor(random() * 2)
-  for (let i = 0; i < count; i++) {
-    const rock = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(radius * (0.5 + random() * 0.5), 0),
-      material,
-    )
-    rock.position.set((random() - 0.5) * radius, radius * 0.25, (random() - 0.5) * radius)
-    rock.rotation.set(random() * 3, random() * 3, random() * 3)
-    group.add(rock)
-  }
-
-  return group
-}
-
 /**
  * Pick a spot for a new island of this radius, clear of the islands already
  * placed. Islands are spread around the origin on a rough ring so any one can
@@ -270,10 +250,12 @@ export function buildWorld(islandModel: THREE.Object3D, seed = Math.random() * 0
     }
 
     const radius = 2.4 + random() * 3.4
+    const rock = makeRock(radius, random)
     hazards.push({
       position: new THREE.Vector3(x, 0, z),
       radius,
-      mesh: makeRock(radius, random),
+      mesh: rock.group,
+      water: rock.water,
     })
   }
 
