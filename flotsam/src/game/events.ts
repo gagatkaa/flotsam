@@ -1,7 +1,6 @@
 import { cardById } from './cards'
 import type { IslandEvent } from './run'
 
-/** the story on each island, keyed by the island's `event` id */
 const EVENTS: Record<string, IslandEvent> = {
   wreck: {
     title: 'The Ship That Wouldn’t Sink',
@@ -269,7 +268,6 @@ const EVENTS: Record<string, IslandEvent> = {
   },
 }
 
-/** the story written for an island, or undefined if it has none yet */
 export function eventFor(id: string): IslandEvent | undefined {
   return EVENTS[id]
 }

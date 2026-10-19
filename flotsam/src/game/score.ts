@@ -1,15 +1,11 @@
-/** everything the closing tally is counted from */
 export interface VoyageResult {
-  /** made it home, rather than going down */
   home: boolean
   pieces: number
   crew: number
   passengers: number
   gold: number
   provisions: number
-  /** hull points left */
   hull: number
-  /** time spent under sail, in seconds */
   seconds: number
 }
 
@@ -25,7 +21,6 @@ export interface Score {
   lines: ScoreLine[]
 }
 
-/** a quick voyage home is worth up to this many points, one per second under par */
 const PAR_SECONDS = 240
 
 const HOME_RATINGS: [number, string][] = [
@@ -41,7 +36,6 @@ function lostRating(pieces: number) {
   return 'Lost at Sea'
 }
 
-/** count up a voyage: what you carried home, and how fast */
 export function scoreVoyage(result: VoyageResult): Score {
   const minutes = Math.floor(result.seconds / 60)
   const seconds = String(Math.floor(result.seconds % 60)).padStart(2, '0')
@@ -54,7 +48,6 @@ export function scoreVoyage(result: VoyageResult): Score {
     { label: 'food', value: String(result.provisions), points: result.provisions * 10 },
     { label: 'health', value: String(Math.round(result.hull)), points: Math.round(result.hull) * 2 },
   ]
-  // only a voyage that ends at home earns anything for being quick
   if (result.home) {
     lines.push({
       label: 'time',
@@ -73,14 +66,12 @@ export function scoreVoyage(result: VoyageResult): Score {
 
 const BEST_KEY = 'flotsam-best-score'
 
-/** save this score if it is the best on this browser, and say whether it was */
 export function recordBest(total: number): { best: number; isNew: boolean } {
   try {
     const previous = Number(localStorage.getItem(BEST_KEY)) || 0
     if (total > previous) localStorage.setItem(BEST_KEY, String(total))
     return { best: Math.max(total, previous), isNew: total > previous }
   } catch {
-    // storage can be blocked (private windows); the score still stands on its own
     return { best: total, isNew: false }
   }
 }

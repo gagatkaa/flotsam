@@ -2,14 +2,10 @@ import * as CANNON from 'cannon-es'
 
 type SolidKind = 'rock' | 'island'
 
-/** one thing the boat is grinding against right now */
 export interface ContactHit {
-  /** world-space normal pointing away from the thing she hit, on the XZ plane */
   nx: number
   nz: number
-  /** how far the hull overlaps it this frame, in metres */
   depth: number
-  /** how hard she is pressing into it, along the normal */
   speed: number
   kind: SolidKind
 }
@@ -21,27 +17,20 @@ interface Point {
 }
 
 const FIXED = 1 / 60
-/** how far the boat's own hull reaches out from its centre, metres */
 const HULL = 2
 
 interface Solid {
   kind: SolidKind
   body: CANNON.Body
   radius: number
-  /** world-space footprint: the shape is an offset of the body, not its position */
   x: number
   z: number
 }
 
 /**
- * cannon-es world whose only job is collision detection. The sail kinematics in
- * Ship.ts keep driving the hull — this is the "where is the deck hitting the
- * rocks and the shore" half. cannon's narrowphase answers whether the hull
- * really overlaps a rock or an island this frame; the normal and overlap depth
- * are then read off the world coordinates, which is exact enough here.
- *
- * The ship body is parked on the boat's spot every step and everything else is
- * static, so the world never becomes a second source of truth for where she is.
+ * A cannon-es world used only for collision detection. The ship body is parked
+ * on the boat every step and everything else is static, so the boat's own
+ * kinematics stay the single source of truth for where she is.
  */
 export class Physics {
   private readonly world = new CANNON.World()
@@ -53,7 +42,7 @@ export class Physics {
     this.world.broadphase = new CANNON.SAPBroadphase(this.world)
     this.world.allowSleep = false
 
-    // the hull as three spheres along her length: cheap, but reads as a hull
+    // the hull as three spheres along her length
     this.ship = new CANNON.Body({ mass: 1 })
     this.ship.allowSleep = false
     this.ship.addShape(new CANNON.Sphere(0.95), new CANNON.Vec3(0, 0, 0))
@@ -63,17 +52,14 @@ export class Physics {
     this.world.addBody(this.ship)
   }
 
-  /** a standing island the boat slides along instead of sailing through */
   island(x: number, z: number, radius: number) {
     const body = new CANNON.Body({ mass: 0 })
-    // tall enough that the hull spheres always meet it across the wave heave
     const rim = radius * 1.12 + 1.5
     body.addShape(new CANNON.Cylinder(rim, rim + 0.1, 6, 12), new CANNON.Vec3(x, -2, z))
     this.solids.push({ kind: 'island', body, radius: rim, x, z })
     this.world.addBody(body)
   }
 
-  /** a rock that does not move, it makes you move */
   rock(x: number, z: number, radius: number) {
     const body = new CANNON.Body({ mass: 0 })
     const reach = radius + 1.1
@@ -82,14 +68,31 @@ export class Physics {
     this.world.addBody(body)
   }
 
-  /** park the body on the boat, ask cannon what she touches, and reap the hits */
-  step(dt: number, position: Point, velocity: Point): ContactHit[] {
+  /**
+   * Open water between a point and the nearest shore or rock (negative inside
+   * it), and the direction away from it. For steering and the camera, not collisions.
+   */
+  nearest(x: number, z: number) {
+    const result = { gap: Infinity, nx: 0, nz: 0 }
+    for (const solid of this.solids) {
+      const dx = x - solid.x
+      const dz = z - solid.z
+      const distance = Math.hypot(dx, dz) || 1e-6
+      const gap = distance - solid.radius
+      if (gap >= result.gap) continue
+      result.gap = gap
+      result.nx = dx / distance
+      result.nz = dz / distance
+    }
+    return result
+  }
+
+  step(position: Point, velocity: Point): ContactHit[] {
     const ship = this.ship
     ship.position.set(position.x, position.y, position.z)
     ship.velocity.set(velocity.x, 0, velocity.z)
-    this.world.step(FIXED, dt, 3)
+    this.world.step(FIXED)
 
-    // the bodies cannon's narrowphase found overlapping the hull this frame
     const touched = new Set<CANNON.Body>()
     for (const contact of this.world.contacts) {
       if (contact.bi === ship) touched.add(contact.bj)
@@ -100,8 +103,7 @@ export class Physics {
     for (const solid of this.solids) {
       if (!touched.has(solid.body)) continue
 
-      // geometry off the boat position we were given: the solver nudges the
-      // dynamic body around during the step, so don't read its post-step spot
+      // measured from the position we were given: the solver nudges the body during the step
       const dx = position.x - solid.x
       const dz = position.z - solid.z
       const distance = Math.hypot(dx, dz)

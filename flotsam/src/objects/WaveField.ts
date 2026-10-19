@@ -8,6 +8,12 @@ const ITER_GEOMETRY = 3
 
 export const BASE_CHOPPY = 4
 
+/**
+ * The sea is drawn behind everything, so it cannot hide what is under it:
+ * anything in the water fades into this colour below the surface instead.
+ */
+export const SEA_DEEP = 0x0a2633
+
 const fract = (v: number) => v - Math.floor(v)
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 const smoothstep = (edge0: number, edge1: number, x: number) => {
@@ -46,7 +52,6 @@ function seaOctave(ux: number, uz: number, choppy: number): number {
   return Math.pow(1 - Math.pow(sx * sz, 0.65), choppy)
 }
 
-/** the hollow the boat drags behind her and the water she piles ahead */
 function wake(x: number, z: number, sx: number, sz: number, dx: number, dz: number, speed: number): number {
   const toX = x - sx
   const toZ = z - sz
@@ -57,11 +62,8 @@ function wake(x: number, z: number, sx: number, sz: number, dx: number, dz: numb
 
   const v = Math.max(0, Math.min(1.6, speed / 8))
 
-  // calm the water right under the hull
   const hull = Math.exp(-dist * dist * 0.1)
 
-  // metres astern and ahead, and a soft hand-over between the two across the beam:
-  // each part of the wake lives only on its own side and dies away with distance
   const behind = Math.max(-along, 0)
   const ahead = Math.max(along, 0)
   const astern = smoothstep(-0.8, 0.8, -along)
@@ -74,18 +76,11 @@ function wake(x: number, z: number, sx: number, sz: number, dx: number, dz: numb
   return (trench + bow + chevron) * (1 - hull * 0.85)
 }
 
-/**
- * CPU mirror of the wave height field the shader raymarches. The ocean only
- * exists on the GPU, so this is how the boat, the islands and the rocks find
- * the visible surface instead of guessing a flat sea level.
- */
+/** CPU mirror of the height field the shader raymarches, so objects ride the visible sea */
 export class WaveField {
-  /** must match the iTime uniform fed to the shader */
   time = 0
-  /** must match the choppy uniform fed to the shader */
   choppy: number = BASE_CHOPPY
 
-  /** the boat's wake, kept in sync with uShipPos / uShipDir / uShipSpeed */
   shipX = 0
   shipZ = 0
   shipDirX = 0
@@ -109,7 +104,6 @@ export class WaveField {
         seaOctave(ux * freq - s, uz * freq - s, choppy)
       ) * amp
 
-      // rotate the sample point between octaves so the layers do not line up
       const rx = ux * 1.6 + uz * 1.2
       const rz = ux * -1.2 + uz * 1.6
       ux = rx

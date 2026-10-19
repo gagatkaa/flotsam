@@ -1,13 +1,10 @@
 import * as THREE from 'three/webgpu'
 import type { Hazard, Island } from './world'
 
-/** what a piece of floating wreckage gives you when you sail into it */
 export interface Loot {
-  /** shown in the pop-up when you pick it up */
   label: string
   provisions?: number
   gold?: number
-  /** hull points patched back on */
   repair?: number
 }
 
@@ -19,24 +16,16 @@ export interface Flotsam {
   loot: Loot
   position: THREE.Vector3
   mesh: THREE.Object3D
-  /** how fast it turns on the water, radians per second */
   spin: number
   collected: boolean
 }
 
-/** how close the hull has to come to scoop something up */
 export const PICKUP_RANGE = 3.4
 
 const COUNT = 28
 
-/** how far from a rock wreckage settles: inside the reef, but clear of the stone */
 const REEF_GAP = { min: 4, max: 13 }
 
-/**
- * Scatter wreckage in the gaps between the rocks on the crossings between
- * the islands, so picking it up means threading the reef on the way to the
- * next landing. It never sits on a beach or inside a rock.
- */
 export function scatterFlotsam(islands: Island[], hazards: Hazard[], random: () => number): Flotsam[] {
   const flotsam: Flotsam[] = []
   if (hazards.length === 0) return flotsam
@@ -79,7 +68,6 @@ function makeMesh(loot: Loot) {
     band.rotation.z = Math.PI / 2
     group.add(barrel, band)
   } else {
-    // a few planks lashed together at odd angles
     for (let i = 0; i < 3; i++) {
       const plank = new THREE.Mesh(new THREE.BoxGeometry(2, 0.12, 0.32), i === 1 ? darkWood : wood)
       plank.position.set(0, i * 0.08, (i - 1) * 0.34)

@@ -5,8 +5,102 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>flotsam</title>
+    <!-- inline, because style.css only arrives with the JS bundle -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #061420;
+      }
+      html:not(.ready) body > :not(#loader) {
+        visibility: hidden;
+      }
+      #loader {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 22px;
+        background: radial-gradient(120% 90% at 50% 110%, #12405a 0%, #0a2633 45%, #061420 100%);
+        color: #e9dfc7;
+        font-family: Georgia, 'Times New Roman', serif;
+        transition: opacity 0.6s ease;
+      }
+      #loader.gone {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #loader h1 {
+        margin: 0;
+        font-size: clamp(40px, 7vw, 72px);
+        font-weight: 400;
+        line-height: 1;
+        letter-spacing: 0.02em;
+      }
+      #loader .swell {
+        width: min(220px, 60vw);
+        height: 14px;
+        overflow: hidden;
+        -webkit-mask: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+        mask: linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+      }
+      #loader .swell svg {
+        display: block;
+        width: 200%;
+        height: 100%;
+        animation: swell 1.6s linear infinite;
+      }
+      #loader p {
+        margin: 0;
+        font: italic 15px Georgia, serif;
+        opacity: 0.6;
+        animation: breathe 2.4s ease-in-out infinite;
+      }
+      @keyframes swell {
+        to {
+          transform: translateX(-50%);
+        }
+      }
+      @keyframes breathe {
+        50% {
+          opacity: 0.3;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #loader .swell svg,
+        #loader p {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="loader" role="status" aria-live="polite">
+      <h1>flotsam</h1>
+      <div class="swell" aria-hidden="true">
+        <svg viewBox="0 0 80 14" preserveAspectRatio="none">
+          <path
+            d="M0 7 Q5 1 10 7 T20 7 T30 7 T40 7 T50 7 T60 7 T70 7 T80 7"
+            fill="none"
+            stroke="#d8b25e"
+            stroke-width="1.6"
+            vector-effect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
+      <p>charting the sea…</p>
+    </div>
+    <script>
+      // if startup fails before main.ts can reveal the page, don't leave the loader up forever
+      addEventListener('unhandledrejection', () => {
+        document.documentElement.classList.add('ready')
+        document.getElementById('loader').classList.add('gone')
+        document.getElementById('overlay').classList.remove('hidden')
+      })
+    </script>
+
     <div id="app"></div>
 
     <div id="damage"></div>
@@ -14,11 +108,11 @@
     <div id="hud">
       <section class="hud-block">
         <h3>the boat</h3>
-<div class="gauge">
-  <label>health</label>
-  <div class="track"><span id="health-fill"></span></div>
-  <b id="health-num">60</b>
-</div>
+        <div class="gauge">
+          <label>health</label>
+          <div class="track"><span id="health-fill"></span></div>
+          <b id="health-num">60</b>
+        </div>
       </section>
       <section class="hud-block">
         <h3>the map</h3>
@@ -65,7 +159,7 @@
       <div class="sheet">
         <h2>Paused</h2>
         <p class="keys">
-          <b>W</b> speed up<i>·</i><b>S</b> slow down<i>·</i><b>A</b><b>D</b> steer<i>·</i>
+          <b>W</b><b>↑</b> speed up<i>·</i><b>S</b><b>↓</b> slow down<i>·</i><b>A</b><b>D</b><b>←</b><b>→</b> steer<i>·</i>
           <b>E</b> go ashore<i>·</i><b>Mouse</b> look<i>·</i><b>Esc</b> pause
         </p>
         <button id="resume" type="button">Resume</button>

@@ -100,14 +100,12 @@ export const CARDS: readonly Card[] = [
   },
 ]
 
-/** look a card up by id. Throws, because an event naming a missing card is a typo */
 export function cardById(id: string): Card {
   const card = CARDS.find((c) => c.id === id)
   if (!card) throw new Error(`unknown card: ${id}`)
   return card
 }
 
-/** the display name for a card id, falling back to the id itself */
 export function cardName(id: string): string {
   return CARDS.find((c) => c.id === id)?.name ?? id
 }
