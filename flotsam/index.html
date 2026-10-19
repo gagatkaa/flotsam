@@ -96,8 +96,8 @@
       // if startup fails before main.ts can reveal the page, don't leave the loader up forever
       addEventListener('unhandledrejection', () => {
         document.documentElement.classList.add('ready')
-        document.getElementById('loader').classList.add('gone')
-        document.getElementById('overlay').classList.remove('hidden')
+        document.getElementById('loader')?.classList.add('gone')
+        document.getElementById('overlay')?.classList.remove('hidden')
       })
     </script>
 
