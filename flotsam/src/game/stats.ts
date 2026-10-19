@@ -28,7 +28,7 @@ export interface Stats {
 
 export const BASE_STATS: Stats = {
   hull: 60,
-  speed: 8.5,
+  speed: 6,
   accel: 1,
   turn: 0.85,
   waveImpact: 1,
@@ -44,7 +44,7 @@ export const BASE_STATS: Stats = {
  * than to balance it. Speeds and turns still climb, just not without bound.
  */
 const CAPS = {
-  speed: 19,
+  speed: 13.5,
   turn: 2.1,
   waveImpact: 2.2,
 }

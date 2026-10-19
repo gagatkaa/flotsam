@@ -6,6 +6,22 @@ import type { Stats } from '../game/stats'
 
 /** half the hull's length: how far fore and aft she feels the waves */
 const HULL_LENGTH = 1.6
+
+/**
+ * How quickly she settles onto the water under her, per second: the heave up
+ * and down, and the lean into its slope. A loaded hull has weight, so she rides
+ * through the small chop and answers the swell a beat late rather than
+ * snapping to every ripple, which is what made the deck dizzying.
+ */
+const HEAVE_RATE = 3
+const LEAN_RATE = 2.2
+
+/**
+ * How much of the deck's pitch and roll the player's view is spared, 0 to 1.
+ * Someone standing on a boat keeps their eyes on the horizon; a camera bolted
+ * to the deck does not, and that difference is most of what makes it sickening.
+ */
+const HORIZON_HOLD = 0.6
 const HIT_COLOR = new THREE.Color(0xff5533)
 
 /**
@@ -103,6 +119,8 @@ export class Ship {
     this.rig.add(this.deck)
     this.deck.add(this.cameraMount)
     this.cameraMount.position.set(0, CAMERA_HEIGHT, CAMERA_AFT)
+    // undoes the deck's pitch-then-roll in reverse order (see HORIZON_HOLD)
+    this.cameraMount.rotation.order = 'ZYX'
 
     // handling is live from the first frame; the mesh appears a beat later.
     // Every material is remembered so a hit can flash the whole boat red.
@@ -274,12 +292,12 @@ export class Ship {
     const starboard = waves.height(x + rx * e, z + rz * e)
     const port = waves.height(x - rx * e, z - rz * e)
 
-    this.smoothedHeight += (centre - this.smoothedHeight) * (1 - Math.min(1, 8 * delta))
+    this.smoothedHeight += (centre - this.smoothedHeight) * ease(HEAVE_RATE, delta)
 
     const impact = this.stats.waveImpact
     let targetPitch = Math.atan2(bow - stern, e * 2) * impact
     let targetRoll: number
-    let follow = 1 - Math.min(1, 6 * delta)
+    let follow = ease(LEAN_RATE, delta)
 
     if (this.sinking) {
       // she settles level fore and aft and lies over to a gentle, fixed list:
@@ -287,7 +305,7 @@ export class Ship {
       // spinning out of control. Sink slow, list slow.
       targetPitch = 0
       targetRoll = 0.08
-      follow = 1 - Math.min(1, 1.1 * delta)
+      follow = ease(1.1, delta)
       this.breakApart()
     } else {
       // ---- heel under sail: she lies over with way on, and leans further into
@@ -309,6 +327,10 @@ export class Ship {
     this.rig.rotation.y = this.yaw
     this.deck.rotation.x = this.pitch
     this.deck.rotation.z = this.roll
+
+    // the eyes hold the horizon: the head takes up most of the deck's lean, so
+    // the view rocks gently while the hull visibly works under you
+    this.cameraMount.rotation.set(-this.pitch * HORIZON_HOLD, 0, -this.roll * HORIZON_HOLD)
   }
 
   /** the sea level where she lies, for anything that wants to look at her */
@@ -394,4 +416,12 @@ function splitAtZero(geometry: THREE.BufferGeometry, materials: THREE.Material[]
     }
     return { forward, mesh: new THREE.Mesh(piece, materials[material] ?? materials[0]) }
   })
+}
+
+/**
+ * The share of the way to close this frame when easing towards a target at
+ * `rate` per second. Frame-rate independent, and never overshoots.
+ */
+function ease(rate: number, delta: number) {
+  return 1 - Math.exp(-rate * delta)
 }

@@ -966,7 +966,7 @@ function flashDamage() {
  */
 function floatIslands(delta: number, elapsed: number) {
   // a beat behind the water: land heaves, it does not snap
-  const follow = 1 - Math.min(1, 1.6 * delta)
+  const follow = 1 - Math.exp(-1.6 * delta)
   const lean = 2.2
 
   for (const island of world.islands) {
